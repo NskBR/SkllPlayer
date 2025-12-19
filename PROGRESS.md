@@ -160,6 +160,12 @@
 - [ ] Adicionar ícone de loading (bolinha girando) na faixa sendo baixada
 - [ ] Mostrar progresso visual no item da lista de resultados
 
+#### Adicionar Logo do App
+- [ ] Logo disponível na pasta `public/`
+- [ ] Adicionar logo na titlebar
+- [ ] Adicionar logo na sidebar (quando expandida)
+- [ ] Usar como ícone do executável
+
 #### Auto-Save em Todo o App
 - [ ] Remover botões de "Salvar" de todas as páginas
 - [ ] Implementar salvamento automático ao alterar qualquer configuração
