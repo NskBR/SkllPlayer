@@ -130,6 +130,38 @@
 
 ## O Que NÃO Está Funcionando / Pendente
 
+### PRÓXIMA SESSÃO - PRIORIDADE
+
+#### Bug: Metadados não baixando em outros PCs
+- [ ] Investigar por que artista e thumbnail não estão sendo extraídos
+- [ ] Testar extração de metadados do yt-dlp
+- [ ] Verificar se música-metadata está funcionando corretamente
+
+#### Reorganizar Sidebar (Categorias)
+- [ ] Criar categoria "Gerenciamento" contendo:
+  - Playlists
+  - Equalizador
+  - Download
+  - Estatísticas
+  - Configurações
+- [ ] Manter na raiz apenas: Home, Faixas, Favoritas
+
+#### UI: Estilizar Ícones do App
+- [ ] Melhorar visual dos ícones da sidebar
+- [ ] Padronizar tamanhos e cores
+- [ ] Adicionar efeitos hover mais elaborados
+
+#### Bug: Sliders Descentralizados
+- [ ] Corrigir posição das bolinhas dos sliders no Equalizador
+- [ ] Corrigir sliders em outras páginas (Faixas, etc)
+- [ ] Alinhar thumb do slider com o cursor do mouse
+
+#### UI: Indicador de Download
+- [ ] Adicionar ícone de loading (bolinha girando) na faixa sendo baixada
+- [ ] Mostrar progresso visual no item da lista de resultados
+
+---
+
 ### Efeitos de Áudio Avançados
 - [ ] Crossfade entre músicas
 - [ ] Gapless playback
