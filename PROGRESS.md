@@ -137,6 +137,11 @@
 - [ ] Testar extração de metadados do yt-dlp
 - [ ] Verificar se música-metadata está funcionando corretamente
 
+#### Bug: Tempo de escuta não contabilizando
+- [ ] Corrigir contador de tempo ouvindo na aba Início (Home)
+- [ ] Verificar chamada de `addListeningTime()` no playerStore
+- [ ] Garantir que estatísticas estão sendo salvas corretamente
+
 #### Reorganizar Sidebar (Categorias)
 - [ ] Criar categoria "Gerenciamento" contendo:
   - Playlists
