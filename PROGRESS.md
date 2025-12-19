@@ -160,6 +160,27 @@
 - [ ] Adicionar ícone de loading (bolinha girando) na faixa sendo baixada
 - [ ] Mostrar progresso visual no item da lista de resultados
 
+#### Auto-Save em Todo o App
+- [ ] Remover botões de "Salvar" de todas as páginas
+- [ ] Implementar salvamento automático ao alterar qualquer configuração
+- [ ] Aplicar para: Equalizador, Configurações, e qualquer outra página com save
+
+#### Primeiro Uso do App
+- [ ] Detectar primeira execução do app
+- [ ] Exibir modal/wizard pedindo para definir pasta de músicas
+- [ ] Pasta de download = mesma pasta de músicas (unificar)
+
+#### Nova Interface do Downloader
+- [ ] Dividir página em 2 colunas:
+  - Esquerda: Busca e resultados
+  - Direita: Gerenciador de downloads (sempre visível)
+- [ ] No gerenciador mostrar:
+  - "Baixando em: [pasta]"
+  - Tempo de download decorrido
+  - Progresso de cada download
+- [ ] Histórico de músicas baixadas (salvar lista persistente)
+- [ ] Manter downloads visíveis enquanto faz novas buscas
+
 ---
 
 ### Efeitos de Áudio Avançados
