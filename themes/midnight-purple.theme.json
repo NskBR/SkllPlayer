@@ -1,0 +1,88 @@
+{
+  "name": "Midnight Purple",
+  "author": "Community",
+  "version": "1.0.0",
+  "type": "dark",
+
+  "colors": {
+    "background": {
+      "primary": "#1a1025",
+      "secondary": "#2d1f3d",
+      "tertiary": "#3d2a54"
+    },
+    "text": {
+      "primary": "#ffffff",
+      "secondary": "#b8a5c9",
+      "muted": "#6b5a7a"
+    },
+    "accent": {
+      "primary": "#9b59b6",
+      "hover": "#8e44ad",
+      "active": "#7d3c98"
+    },
+    "player": {
+      "progress": "#9b59b6",
+      "progressBackground": "#3d2a54",
+      "controls": "#ffffff"
+    },
+    "sidebar": {
+      "background": "#150d1f",
+      "itemHover": "#2d1f3d",
+      "itemActive": "#9b59b6"
+    }
+  },
+
+  "fonts": {
+    "primary": "Inter, system-ui, sans-serif",
+    "secondary": "JetBrains Mono, monospace",
+    "sizes": {
+      "small": "12px",
+      "normal": "14px",
+      "medium": "16px",
+      "large": "20px",
+      "title": "28px"
+    }
+  },
+
+  "layout": {
+    "sidebar": {
+      "position": "left",
+      "width": "240px",
+      "collapsedWidth": "70px"
+    },
+    "player": {
+      "position": "bottom",
+      "height": "90px"
+    },
+    "header": {
+      "visible": true,
+      "height": "40px"
+    }
+  },
+
+  "components": {
+    "borderRadius": "12px",
+    "trackItem": {
+      "height": "60px",
+      "thumbnailSize": "48px",
+      "showDuration": true,
+      "showArtist": true
+    },
+    "buttons": {
+      "borderRadius": "20px",
+      "style": "filled"
+    },
+    "scrollbar": {
+      "width": "8px",
+      "thumbColor": "#6b5a7a",
+      "trackColor": "transparent"
+    }
+  },
+
+  "effects": {
+    "blur": true,
+    "animations": true,
+    "transitionSpeed": "200ms",
+    "hoverScale": 1.02
+  }
+}
