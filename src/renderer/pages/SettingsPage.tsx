@@ -1,21 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   FolderOpen,
   Palette,
   RotateCcw,
-  Save,
   Moon,
   Sun,
   Check,
-  Monitor
+  Monitor,
+  Loader2,
+  AudioLines,
+  Volume2
 } from 'lucide-react';
 import { useTheme } from '../hooks/useTheme';
+import { useEqualizerStore } from '../stores/equalizerStore';
 import { motion } from 'framer-motion';
 
 interface Settings {
   musicFolder: string;
   theme: string;
   volume: number;
+  crossfadeEnabled: boolean;
+  crossfadeDuration: number;
+  normalizationEnabled: boolean;
 }
 
 export default function SettingsPage(): JSX.Element {
@@ -23,9 +29,29 @@ export default function SettingsPage(): JSX.Element {
     musicFolder: '',
     theme: 'Default Dark',
     volume: 1,
+    crossfadeEnabled: false,
+    crossfadeDuration: 3,
+    normalizationEnabled: false,
   });
-  const [isSaving, setIsSaving] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const { availableThemes, loadTheme, themeName } = useTheme();
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-save with debounce
+  const autoSave = useCallback(async (newSettings: Settings) => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(async () => {
+      try {
+        if (window.electronAPI) {
+          await window.electronAPI.saveSettings(newSettings);
+        }
+      } catch (error) {
+        console.error('Error saving settings:', error);
+      }
+    }, 500);
+  }, []);
 
   useEffect(() => {
     loadSettings();
@@ -47,34 +73,27 @@ export default function SettingsPage(): JSX.Element {
       if (window.electronAPI) {
         const folder = await window.electronAPI.selectMusicFolder();
         if (folder) {
-          setSettings((prev) => ({ ...prev, musicFolder: folder }));
+          const newSettings = { ...settings, musicFolder: folder };
+          setSettings(newSettings);
+
+          // Auto-save and scan
+          await window.electronAPI.saveSettings(newSettings);
+          setIsScanning(true);
+          await window.electronAPI.scanMusicFolder(folder);
+          setIsScanning(false);
         }
       }
     } catch (error) {
       console.error('Error selecting folder:', error);
+      setIsScanning(false);
     }
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      if (window.electronAPI) {
-        await window.electronAPI.saveSettings(settings);
-
-        // Scan music folder if set
-        if (settings.musicFolder) {
-          await window.electronAPI.scanMusicFolder(settings.musicFolder);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-    setIsSaving(false);
-  };
-
-  const handleThemeChange = async (themeName: string) => {
-    setSettings((prev) => ({ ...prev, theme: themeName }));
-    await loadTheme(themeName);
+  const handleThemeChange = async (newThemeName: string) => {
+    const newSettings = { ...settings, theme: newThemeName };
+    setSettings(newSettings);
+    await loadTheme(newThemeName);
+    autoSave(newSettings);
   };
 
   const handleResetStats = async () => {
@@ -95,20 +114,9 @@ export default function SettingsPage(): JSX.Element {
   return (
     <div className="space-y-8 animate-slideUp max-w-3xl">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-theme-title font-bold text-text-primary">Configurações</h1>
-          <p className="text-text-secondary">Personalize seu player</p>
-        </div>
-
-        <button
-          onClick={handleSave}
-          disabled={isSaving}
-          className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-lg transition-colors disabled:opacity-50"
-        >
-          <Save className="w-4 h-4" />
-          <span>{isSaving ? 'Salvando...' : 'Salvar'}</span>
-        </button>
+      <div>
+        <h1 className="text-theme-title font-bold text-text-primary">Configurações</h1>
+        <p className="text-text-secondary">Personalize seu player</p>
       </div>
 
       {/* Music folder */}
@@ -132,9 +140,17 @@ export default function SettingsPage(): JSX.Element {
           />
           <button
             onClick={handleSelectFolder}
-            className="btn btn-secondary"
+            disabled={isScanning}
+            className="btn btn-secondary disabled:opacity-50"
           >
-            Selecionar
+            {isScanning ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Escaneando...</span>
+              </>
+            ) : (
+              'Selecionar'
+            )}
           </button>
         </div>
       </section>
@@ -192,6 +208,105 @@ export default function SettingsPage(): JSX.Element {
         <p className="text-text-muted text-xs mt-4">
           Você pode adicionar temas personalizados na pasta "themes" do aplicativo.
           Consulte o README.md para instruções.
+        </p>
+      </section>
+
+      {/* Crossfade */}
+      <section className="bg-bg-secondary rounded-xl p-6 border border-bg-tertiary">
+        <div className="flex items-center gap-3 mb-4">
+          <AudioLines className="w-5 h-5 text-accent-primary" />
+          <h2 className="text-lg font-semibold text-text-primary">Crossfade</h2>
+        </div>
+
+        <p className="text-text-secondary text-sm mb-4">
+          Transição suave entre músicas, misturando o final de uma com o início da próxima
+        </p>
+
+        <div className="space-y-4">
+          {/* Toggle */}
+          <div className="flex items-center justify-between">
+            <span className="text-text-primary">Ativar crossfade</span>
+            <button
+              onClick={() => {
+                const newSettings = { ...settings, crossfadeEnabled: !settings.crossfadeEnabled };
+                setSettings(newSettings);
+                autoSave(newSettings);
+              }}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                settings.crossfadeEnabled ? 'bg-accent-primary' : 'bg-bg-tertiary'
+              }`}
+            >
+              <span
+                className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  settings.crossfadeEnabled ? 'translate-x-6' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Duration slider */}
+          <div className={`space-y-2 ${!settings.crossfadeEnabled ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-text-secondary text-sm">Duração</span>
+              <span className="text-accent-primary font-medium">{settings.crossfadeDuration}s</span>
+            </div>
+            <input
+              type="range"
+              min="1"
+              max="10"
+              step="1"
+              value={settings.crossfadeDuration}
+              onChange={(e) => {
+                const newSettings = { ...settings, crossfadeDuration: parseInt(e.target.value) };
+                setSettings(newSettings);
+                autoSave(newSettings);
+              }}
+              className="w-full h-2 bg-bg-tertiary rounded-lg appearance-none cursor-pointer accent-accent-primary"
+            />
+            <div className="flex justify-between text-xs text-text-muted">
+              <span>1s</span>
+              <span>5s</span>
+              <span>10s</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Volume Normalization */}
+      <section className="bg-bg-secondary rounded-xl p-6 border border-bg-tertiary">
+        <div className="flex items-center gap-3 mb-4">
+          <Volume2 className="w-5 h-5 text-accent-primary" />
+          <h2 className="text-lg font-semibold text-text-primary">Normalização de Volume</h2>
+        </div>
+
+        <p className="text-text-secondary text-sm mb-4">
+          Equaliza o volume entre músicas diferentes, evitando que algumas toquem muito alto ou muito baixo
+        </p>
+
+        <div className="flex items-center justify-between">
+          <span className="text-text-primary">Ativar normalização</span>
+          <button
+            onClick={() => {
+              const newSettings = { ...settings, normalizationEnabled: !settings.normalizationEnabled };
+              setSettings(newSettings);
+              autoSave(newSettings);
+              // Also update the equalizer store
+              useEqualizerStore.getState().setNormalization(!settings.normalizationEnabled);
+            }}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              settings.normalizationEnabled ? 'bg-accent-primary' : 'bg-bg-tertiary'
+            }`}
+          >
+            <span
+              className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                settings.normalizationEnabled ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        <p className="text-text-muted text-xs mt-3">
+          Usa compressão dinâmica para nivelar o volume. Pode afetar ligeiramente a dinâmica da música.
         </p>
       </section>
 

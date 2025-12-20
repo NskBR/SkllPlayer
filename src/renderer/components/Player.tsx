@@ -334,13 +334,16 @@ export default function Player(): JSX.Element {
               onClick={handleProgressClick}
               onMouseDown={handleProgressMouseDown}
             >
+              {/* Progress fill */}
               <div
-                className="h-full bg-player-progress rounded-full relative transition-all"
-                style={{ width: `${progress}%` }}
-              >
-                {/* Drag handle */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
+                className="h-full bg-player-progress rounded-full"
+                style={{ width: `${progress}%`, transition: isDraggingProgress ? 'none' : 'width 0.1s ease-out' }}
+              />
+              {/* Drag handle - positioned relative to full bar */}
+              <div
+                className="absolute top-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                style={{ left: `${progress}%`, transform: 'translate(-50%, -50%)' }}
+              />
             </div>
 
             <span className="text-xs text-text-muted w-10 tabular-nums">
@@ -381,13 +384,16 @@ export default function Player(): JSX.Element {
               onClick={handleVolumeClick}
               onMouseDown={handleVolumeMouseDown}
             >
+              {/* Volume fill */}
               <div
-                className="h-full bg-player-progress rounded-full relative transition-all"
-                style={{ width: `${isMuted ? 0 : displayVolume * 100}%` }}
-              >
-                {/* Drag handle */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
+                className="h-full bg-player-progress rounded-full"
+                style={{ width: `${isMuted ? 0 : displayVolume * 100}%`, transition: isDraggingVolume ? 'none' : 'width 0.1s ease-out' }}
+              />
+              {/* Drag handle - positioned relative to full bar */}
+              <div
+                className="absolute top-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+                style={{ left: `${isMuted ? 0 : displayVolume * 100}%`, transform: 'translate(-50%, -50%)' }}
+              />
 
               {/* Volume percentage tooltip - shows on hover and drag */}
               <div

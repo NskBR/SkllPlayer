@@ -2,8 +2,10 @@ import { app, BrowserWindow, ipcMain, globalShortcut, protocol } from 'electron'
 import * as path from 'path';
 import * as fs from 'fs';
 import { setupIpcHandlers } from './ipc';
+import { createSplashWindow } from './splash';
 
 let mainWindow: BrowserWindow | null = null;
+let splashWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -39,7 +41,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     frame: false, // Remove default frame for custom titlebar
     transparent: false,
     backgroundColor: '#0a0a0f',
-    show: true, // Show immediately for testing
+    show: false, // Hidden initially, shown after splash
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -51,7 +53,10 @@ async function createMainWindow(): Promise<BrowserWindow> {
   // Load the app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    // Open DevTools after window is shown
+    mainWindow.once('show', () => {
+      mainWindow?.webContents.openDevTools();
+    });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
@@ -105,7 +110,13 @@ async function initialize(): Promise<void> {
   // Register custom protocol for audio files
   registerMediaProtocol();
 
-  // Create main window
+  // Get logo path for splash screen
+  const logoPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+
+  // Create and show splash screen
+  splashWindow = await createSplashWindow(logoPath);
+
+  // Create main window (hidden)
   await createMainWindow();
 
   // Setup IPC handlers (after window is created so we can pass it for download progress)
@@ -114,19 +125,41 @@ async function initialize(): Promise<void> {
   // Register global shortcuts
   registerGlobalShortcuts();
 
-  // Show window when ready
-  mainWindow?.once('ready-to-show', () => {
-    mainWindow?.show();
-    mainWindow?.focus();
-  });
-
-  // Fallback: show after 3s if ready-to-show doesn't fire
-  setTimeout(() => {
-    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+  // Function to close splash and show main window
+  const showMainWindow = () => {
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.show();
       mainWindow.focus();
     }
-  }, 3000);
+  };
+
+  // Show main window when ready (minimum 1.5s splash for smooth UX)
+  let isReady = false;
+  let minTimeElapsed = false;
+
+  mainWindow?.webContents.once('did-finish-load', () => {
+    isReady = true;
+    if (minTimeElapsed) {
+      showMainWindow();
+    }
+  });
+
+  // Minimum splash time for smooth UX
+  setTimeout(() => {
+    minTimeElapsed = true;
+    if (isReady) {
+      showMainWindow();
+    }
+  }, 1500);
+
+  // Fallback: show after 5s if something goes wrong
+  setTimeout(() => {
+    showMainWindow();
+  }, 5000);
 }
 
 // App lifecycle

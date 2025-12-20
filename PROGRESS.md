@@ -128,81 +128,66 @@
 
 ---
 
-## O Que NÃO Está Funcionando / Pendente
+## Concluído Recentemente (Sessão Atual)
 
-### PRÓXIMA SESSÃO - PRIORIDADE
+### Bugs Corrigidos
+- [x] **Bug: Metadados não baixando** - Agora usa metadados do YouTube como fallback
+- [x] **Bug: Tempo de escuta não contabilizando** - Corrigido tracking com debounce a cada 10s
+- [x] **Bug: Sliders descentralizados** - Corrigido posicionamento com transform translate
+- [x] **Bug: Favoritos recarregando tudo** - Agora atualiza apenas a faixa específica
 
-#### Bug: Metadados não baixando em outros PCs
-- [ ] Investigar por que artista e thumbnail não estão sendo extraídos
-- [ ] Testar extração de metadados do yt-dlp
-- [ ] Verificar se música-metadata está funcionando corretamente
+### Melhorias de UI
+- [x] **Sidebar reorganizada** - Categorias "Biblioteca" e "Gerenciamento"
+- [x] **Ícones coloridos** - Cada ícone com cor única + efeito glow no hover
+- [x] **Logo do app** - Adicionada na sidebar (quando expandida)
+- [x] **Titlebar simplificada** - Nome centralizado, sem logo redundante
+- [x] **Indicador de download** - Loading spinner na thumbnail durante download
 
-#### Bug: Tempo de escuta não contabilizando
-- [ ] Corrigir contador de tempo ouvindo na aba Início (Home)
-- [ ] Verificar chamada de `addListeningTime()` no playerStore
-- [ ] Garantir que estatísticas estão sendo salvas corretamente
+### Novas Funcionalidades
+- [x] **Auto-save** - Equalizador e Configurações salvam automaticamente
+- [x] **Wizard de primeiro uso** - Modal pedindo pasta de músicas na primeira execução
+- [x] **Nova interface do Downloader** - 2 colunas com gerenciador sempre visível
+- [x] **Histórico de downloads** - Lista persistente das músicas baixadas
+- [x] **Virtualização da lista** - TrackList otimizada com @tanstack/react-virtual
 
-#### Reorganizar Sidebar (Categorias)
-- [ ] Criar categoria "Gerenciamento" contendo:
-  - Playlists
-  - Equalizador
-  - Download
-  - Estatísticas
-  - Configurações
-- [ ] Manter na raiz apenas: Home, Faixas, Favoritas
+### Otimizações de Performance
+- [x] **FPS melhorado** - Throttle nas atualizações de currentTime (60fps → 4fps)
+- [x] **Memoização** - TrackListItem com memo() e comparação customizada
+- [x] **Animações GPU** - playing-bar usa transform ao invés de opacity
 
-#### UI: Estilizar Ícones do App
-- [ ] Melhorar visual dos ícones da sidebar
-- [ ] Padronizar tamanhos e cores
-- [ ] Adicionar efeitos hover mais elaborados
+### Splash Screen
+- [x] **Splash screen reativada** - Corrigida lógica de transição
+- [x] **Logo embarcada** - Converte para base64 para exibição
+- [x] **Transição suave** - Mínimo 1.5s de exibição + fallback 5s
 
-#### Bug: Sliders Descentralizados
-- [ ] Corrigir posição das bolinhas dos sliders no Equalizador
-- [ ] Corrigir sliders em outras páginas (Faixas, etc)
-- [ ] Alinhar thumb do slider com o cursor do mouse
+### Crossfade (Não Funcional)
+- [ ] **Crossfade entre músicas** - Implementado mas não funcionando corretamente
+- [x] **Configuração opcional** - Toggle on/off em Configurações
+- [x] **Duração configurável** - Slider de 1s a 10s (padrão: 3s)
 
-#### UI: Indicador de Download
-- [ ] Adicionar ícone de loading (bolinha girando) na faixa sendo baixada
-- [ ] Mostrar progresso visual no item da lista de resultados
+### Gapless Playback
+- [x] **Pré-carregamento** - Próxima faixa é carregada enquanto a atual toca
+- [x] **Transição instantânea** - Usa faixa pré-carregada quando disponível
+- [x] **Limpeza de recursos** - Libera memória ao trocar de faixa
 
-#### Adicionar Logo do App
-- [ ] Logo disponível na pasta `public/`
-- [ ] Adicionar logo na titlebar
-- [ ] Adicionar logo na sidebar (quando expandida)
-- [ ] Usar como ícone do executável
-
-#### Auto-Save em Todo o App
-- [ ] Remover botões de "Salvar" de todas as páginas
-- [ ] Implementar salvamento automático ao alterar qualquer configuração
-- [ ] Aplicar para: Equalizador, Configurações, e qualquer outra página com save
-
-#### Primeiro Uso do App
-- [ ] Detectar primeira execução do app
-- [ ] Exibir modal/wizard pedindo para definir pasta de músicas
-- [ ] Pasta de download = mesma pasta de músicas (unificar)
-
-#### Nova Interface do Downloader
-- [ ] Dividir página em 2 colunas:
-  - Esquerda: Busca e resultados
-  - Direita: Gerenciador de downloads (sempre visível)
-- [ ] No gerenciador mostrar:
-  - "Baixando em: [pasta]"
-  - Tempo de download decorrido
-  - Progresso de cada download
-- [ ] Histórico de músicas baixadas (salvar lista persistente)
-- [ ] Manter downloads visíveis enquanto faz novas buscas
+### Normalização de Volume
+- [x] **Compressor dinâmico** - Usa DynamicsCompressorNode para nivelar volume
+- [x] **Toggle on/off** - Configurável em Configurações
+- [x] **Persistência** - Salva preferência do usuário
 
 ---
 
-### Efeitos de Áudio Avançados
-- [ ] Crossfade entre músicas
-- [ ] Gapless playback
-- [ ] Normalização de volume
-- [ ] Virtualizador (em desenvolvimento)
+## O Que Falta Fazer
 
-### Splash Screen
-- [ ] Splash screen temporariamente desativada
-- [ ] Corrigir lógica de transição
+### Efeitos de Áudio Avançados
+- [ ] Crossfade entre músicas (não funcional)
+- [x] ~~Gapless playback~~
+- [x] ~~Normalização de volume~~
+
+### Build & Distribuição
+- [ ] Configurar electron-builder
+- [ ] Usar logo como ícone do executável (.ico)
+- [ ] Gerar instalador Windows
 
 ---
 
@@ -216,7 +201,7 @@ SkllPlayer/
 │   │   ├── preload.ts       # Bridge IPC
 │   │   ├── ipc.ts           # Handlers (músicas, playlists, temas)
 │   │   ├── downloader.ts    # yt-dlp + ffmpeg integration
-│   │   └── splash.ts        # Splash screen (desativada)
+│   │   └── splash.ts        # Splash screen com logo
 │   │
 │   └── renderer/
 │       ├── components/
@@ -272,13 +257,13 @@ npm run electron:dev
 
 ## Próximos Passos (Prioridade)
 
-1. **Reativar Splash Screen**
-   - Corrigir lógica de transição
-
-2. **Efeitos de áudio avançados**
-   - Crossfade entre músicas
+1. **Efeitos de áudio avançados**
    - Gapless playback
    - Normalização de volume
+
+2. **Build para distribuição**
+   - Configurar electron-builder
+   - Gerar instalador e versão portable
 
 ---
 
@@ -286,8 +271,12 @@ npm run electron:dev
 
 | Problema | Severidade | Status |
 |----------|------------|--------|
-| Splash screen abrindo infinitamente | Média | Desativada temporariamente |
+| ~~Splash screen abrindo infinitamente~~ | ~~Média~~ | ✅ Corrigido |
 | Erros de cache do Windows no console | Baixa | Ignorável |
+| ~~Metadados não baixando~~ | ~~Alta~~ | ✅ Corrigido |
+| ~~Tempo de escuta não contabiliza~~ | ~~Alta~~ | ✅ Corrigido |
+| ~~Sliders descentralizados~~ | ~~Média~~ | ✅ Corrigido |
+| ~~FPS baixo na lista de faixas~~ | ~~Alta~~ | ✅ Corrigido |
 
 ---
 
@@ -304,6 +293,7 @@ npm run electron:dev
 - **music-metadata** 7.x - Extração de metadados
 - **electron-store** 8.x - Armazenamento local
 - **Lucide React** - Ícones
+- **@tanstack/react-virtual** - Virtualização de listas
 
 ---
 

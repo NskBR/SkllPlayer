@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { RotateCcw, Save, Volume2, Power } from 'lucide-react';
+import { RotateCcw, Volume2, Power } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useEqualizerStore, EqualizerSettings } from '../stores/equalizerStore';
 
@@ -23,7 +23,7 @@ const frequencies = [
 ] as const;
 
 export default function EqualizerPage(): JSX.Element {
-  const { settings, updateSetting, setSettings, resetSettings, saveSettings, isInitialized } = useEqualizerStore();
+  const { settings, updateSetting, setSettings, resetSettings, isInitialized } = useEqualizerStore();
   const [activePreset, setActivePreset] = useState<string>('');
 
   // Detect active preset
@@ -50,10 +50,6 @@ export default function EqualizerPage(): JSX.Element {
   const handleReset = () => {
     resetSettings();
     setActivePreset('Flat');
-  };
-
-  const handleSave = async () => {
-    await saveSettings();
   };
 
   const applyPreset = (preset: typeof presets[0]) => {
@@ -95,13 +91,6 @@ export default function EqualizerPage(): JSX.Element {
           >
             <RotateCcw className="w-4 h-4" />
             <span>Resetar</span>
-          </button>
-          <button
-            onClick={handleSave}
-            className="flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-lg transition-colors"
-          >
-            <Save className="w-4 h-4" />
-            <span>Salvar</span>
           </button>
         </div>
       </div>
@@ -163,10 +152,11 @@ export default function EqualizerPage(): JSX.Element {
                   style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
                 />
                 <motion.div
-                  className="absolute w-4 h-4 bg-white rounded-full shadow-lg cursor-pointer"
+                  className="absolute w-4 h-4 bg-white rounded-full shadow-lg pointer-events-none"
                   style={{
                     bottom: `${(((settings[freq.key as keyof EqualizerSettings] as number) + 12) / 24) * 100}%`,
-                    transform: 'translateY(50%)',
+                    left: '50%',
+                    transform: 'translate(-50%, 50%)',
                   }}
                   whileHover={{ scale: 1.2 }}
                 />
@@ -300,8 +290,8 @@ function SliderControl({
           className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
         />
         <motion.div
-          className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-lg"
-          style={{ left: `calc(${percentage}% - 8px)` }}
+          className="absolute top-1/2 w-4 h-4 bg-white rounded-full shadow-lg pointer-events-none"
+          style={{ left: `${percentage}%`, transform: 'translate(-50%, -50%)' }}
           whileHover={{ scale: 1.2 }}
         />
       </div>

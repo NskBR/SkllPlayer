@@ -37,11 +37,25 @@ interface Playlist {
   trackIds: number[];
 }
 
+interface DownloadHistoryItem {
+  id: string;
+  videoId: string;
+  title: string;
+  artist: string;
+  thumbnail: string | null;
+  format: string;
+  downloadedAt: string;
+  filePath: string;
+}
+
 // Default settings
 const defaultSettings = {
   musicFolder: '',
   theme: 'Default Dark',
   volume: 1,
+  crossfadeEnabled: false,
+  crossfadeDuration: 3, // seconds
+  normalizationEnabled: false,
   equalizer: {
     '60': 0,
     '230': 0,
@@ -505,7 +519,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
     }
   });
 
-  ipcMain.handle('download-track', async (_event, videoId: string, format: string) => {
+  ipcMain.handle('download-track', async (_event, videoId: string, format: string, youtubeMetadata?: { title: string; artist: string; thumbnail: string }) => {
     try {
       // Check if yt-dlp is installed
       if (!isYtDlpInstalled()) {
@@ -534,16 +548,37 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
         // Extract metadata and add to tracks
         try {
           const stat = fs.statSync(outputFile);
-          const metadata = await mm.parseFile(outputFile);
-          const common = metadata.common;
-          const formatInfo = metadata.format;
 
-          // Extract thumbnail if available
-          let thumbnail: string | null = null;
-          if (common.picture && common.picture.length > 0) {
-            const pic = common.picture[0];
-            thumbnail = `data:${pic.format};base64,${pic.data.toString('base64')}`;
+          // Try to extract metadata from the file
+          let fileTitle: string | undefined;
+          let fileArtist: string | undefined;
+          let fileAlbum: string | undefined;
+          let fileDuration: number | undefined;
+          let fileThumbnail: string | null = null;
+
+          try {
+            const metadata = await mm.parseFile(outputFile);
+            const common = metadata.common;
+            const formatInfo = metadata.format;
+
+            fileTitle = common.title;
+            fileArtist = common.artist;
+            fileAlbum = common.album;
+            fileDuration = formatInfo.duration;
+
+            // Extract thumbnail if available in file
+            if (common.picture && common.picture.length > 0) {
+              const pic = common.picture[0];
+              fileThumbnail = `data:${pic.format};base64,${pic.data.toString('base64')}`;
+            }
+          } catch (metadataError) {
+            console.log('Could not extract metadata from file, using YouTube metadata as fallback');
           }
+
+          // Use YouTube metadata as fallback if file metadata is missing
+          const finalTitle = fileTitle || youtubeMetadata?.title || path.basename(outputFile, path.extname(outputFile));
+          const finalArtist = fileArtist || youtubeMetadata?.artist || 'Artista desconhecido';
+          const finalThumbnail = fileThumbnail || (youtubeMetadata?.thumbnail ? youtubeMetadata.thumbnail : null);
 
           const tracks = getTracks();
           const nextId = Math.max(0, ...tracks.map(t => t.id)) + 1;
@@ -551,11 +586,11 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
           const newTrack: Track = {
             id: nextId,
             path: outputFile,
-            title: common.title || path.basename(outputFile, path.extname(outputFile)),
-            artist: common.artist || 'YouTube',
-            album: common.album || '',
-            duration: formatInfo.duration || 0,
-            thumbnail,
+            title: finalTitle,
+            artist: finalArtist,
+            album: fileAlbum || '',
+            duration: fileDuration || 0,
+            thumbnail: finalThumbnail,
             playCount: 0,
             addedAt: new Date().toISOString(),
             lastPlayed: null,
@@ -566,7 +601,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
           tracks.push(newTrack);
           saveTracks(tracks);
 
-          console.log('Track added to library:', newTrack.title);
+          console.log('Track added to library:', newTrack.title, 'by', newTrack.artist);
         } catch (e) {
           console.error('Error adding track to library:', e);
         }
@@ -590,5 +625,26 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
   ipcMain.handle('install-ytdlp', async () => {
     await installYtDlp();
     return true;
+  });
+
+  // Download history handlers
+  ipcMain.handle('get-download-history', () => {
+    return store.get('downloadHistory', []) as DownloadHistoryItem[];
+  });
+
+  ipcMain.handle('add-to-download-history', (_event, item: DownloadHistoryItem) => {
+    const history = store.get('downloadHistory', []) as DownloadHistoryItem[];
+    history.unshift(item); // Add to beginning
+    // Keep only last 100 items
+    if (history.length > 100) {
+      history.pop();
+    }
+    store.set('downloadHistory', history);
+    return history;
+  });
+
+  ipcMain.handle('clear-download-history', () => {
+    store.set('downloadHistory', []);
+    return [];
   });
 }

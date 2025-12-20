@@ -9,7 +9,12 @@ import {
   Settings,
   Folder,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  FolderOpen,
+  Trash2,
+  Music,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,15 +28,32 @@ interface SearchResult {
 
 interface DownloadItem {
   id: string;
+  videoId: string;
   title: string;
+  artist: string;
+  thumbnail: string;
   status: 'downloading' | 'completed' | 'error';
   progress: number;
   speed: string;
   eta: string;
   error?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
+interface DownloadHistoryItem {
+  id: string;
+  videoId: string;
+  title: string;
+  artist: string;
+  thumbnail: string | null;
+  format: string;
+  downloadedAt: string;
+  filePath: string;
 }
 
 type AudioFormat = 'mp3-320' | 'mp3-192' | 'mp3-128' | 'flac' | 'm4a' | 'ogg';
+type DownloadTab = 'active' | 'history';
 
 const formatOptions: { value: AudioFormat; label: string }[] = [
   { value: 'mp3-320', label: 'MP3 320kbps' },
@@ -50,6 +72,14 @@ interface YtDlpStatus {
   ffmpegPath: string;
 }
 
+// Format elapsed time
+function formatElapsedTime(startTime: number): string {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const mins = Math.floor(elapsed / 60);
+  const secs = elapsed % 60;
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
+
 export default function DownloaderPage(): JSX.Element {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -57,18 +87,56 @@ export default function DownloaderPage(): JSX.Element {
   const [downloads, setDownloads] = useState<DownloadItem[]>([]);
   const [format, setFormat] = useState<AudioFormat>('mp3-320');
   const [downloadFolder, setDownloadFolder] = useState('');
-  const [autoAddToLibrary, setAutoAddToLibrary] = useState(true);
-  const [downloadThumbnail, setDownloadThumbnail] = useState(true);
-  const [autoMetadata, setAutoMetadata] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
   const [isInstallingYtdlp, setIsInstallingYtdlp] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [, setTick] = useState(0); // For elapsed time updates
+  const [downloadHistory, setDownloadHistory] = useState<DownloadHistoryItem[]>([]);
+  const [activeTab, setActiveTab] = useState<DownloadTab>('active');
 
-  // Check yt-dlp status on mount
+  // Check yt-dlp status and load settings on mount
   useEffect(() => {
     checkYtDlpStatus();
+    loadSettings();
+    loadDownloadHistory();
   }, []);
+
+  const loadDownloadHistory = async () => {
+    try {
+      if (window.electronAPI?.getDownloadHistory) {
+        const history = await window.electronAPI.getDownloadHistory();
+        setDownloadHistory(history);
+      }
+    } catch (error) {
+      console.error('Error loading download history:', error);
+    }
+  };
+
+  // Update elapsed time every second for active downloads
+  useEffect(() => {
+    const hasActiveDownloads = downloads.some(d => d.status === 'downloading');
+    if (!hasActiveDownloads) return;
+
+    const interval = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [downloads]);
+
+  const loadSettings = async () => {
+    try {
+      if (window.electronAPI?.getSettings) {
+        const settings = await window.electronAPI.getSettings();
+        if (settings.musicFolder) {
+          setDownloadFolder(settings.musicFolder);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
 
   const checkYtDlpStatus = async () => {
     try {
@@ -112,7 +180,7 @@ export default function DownloaderPage(): JSX.Element {
     } catch (error: any) {
       console.error('Error searching:', error);
       if (error.message?.includes('yt-dlp not installed')) {
-        setSearchError('yt-dlp não está instalado. Clique em "Instalar yt-dlp" para continuar.');
+        setSearchError('yt-dlp não está instalado. Clique em "Instalar" para continuar.');
       } else {
         setSearchError(`Erro na busca: ${error.message || 'Erro desconhecido'}`);
       }
@@ -120,28 +188,38 @@ export default function DownloaderPage(): JSX.Element {
     setIsSearching(false);
   };
 
+  const isDownloading = (videoId: string) => {
+    return downloads.some(d => d.videoId === videoId && d.status === 'downloading');
+  };
+
   const handleDownload = async (result: SearchResult) => {
+    if (isDownloading(result.id)) return;
+
     const downloadId = `${result.id}-${Date.now()}`;
+    const thumbnailUrl = getThumbnailUrl(result);
 
     // Add to downloads list
-    setDownloads((prev) => [
-      {
-        id: downloadId,
-        title: result.title,
-        status: 'downloading',
-        progress: 0,
-        speed: '0 KB/s',
-        eta: 'Calculando...',
-      },
-      ...prev,
-    ]);
+    const newDownload: DownloadItem = {
+      id: downloadId,
+      videoId: result.id,
+      title: result.title,
+      artist: result.artist,
+      thumbnail: thumbnailUrl,
+      status: 'downloading',
+      progress: 0,
+      speed: '0 KB/s',
+      eta: 'Calculando...',
+      startedAt: Date.now(),
+    };
+
+    setDownloads(prev => [newDownload, ...prev]);
 
     try {
       if (window.electronAPI) {
         // Set up progress listener
         window.electronAPI.onDownloadProgress((progress) => {
-          setDownloads((prev) =>
-            prev.map((d) =>
+          setDownloads(prev =>
+            prev.map(d =>
               d.id === downloadId
                 ? {
                     ...d,
@@ -155,45 +233,40 @@ export default function DownloaderPage(): JSX.Element {
         });
 
         // Start download
-        await window.electronAPI.downloadTrack(result.id, format);
+        const filePath = await window.electronAPI.downloadTrack(result.id, format, {
+          title: result.title,
+          artist: result.artist,
+          thumbnail: thumbnailUrl,
+        });
 
         // Mark as completed
-        setDownloads((prev) =>
-          prev.map((d) =>
+        setDownloads(prev =>
+          prev.map(d =>
             d.id === downloadId
-              ? { ...d, status: 'completed', progress: 100 }
+              ? { ...d, status: 'completed', progress: 100, completedAt: Date.now() }
               : d
           )
         );
-      } else {
-        // Mock download for development
-        for (let i = 0; i <= 100; i += 10) {
-          await new Promise((resolve) => setTimeout(resolve, 300));
-          setDownloads((prev) =>
-            prev.map((d) =>
-              d.id === downloadId
-                ? {
-                    ...d,
-                    progress: i,
-                    speed: `${Math.random() * 5 + 1} MB/s`,
-                    eta: `${Math.ceil((100 - i) / 10)}s`,
-                  }
-                : d
-            )
-          );
-        }
 
-        setDownloads((prev) =>
-          prev.map((d) =>
-            d.id === downloadId
-              ? { ...d, status: 'completed', progress: 100 }
-              : d
-          )
-        );
+        // Add to download history
+        if (filePath && window.electronAPI.addToDownloadHistory) {
+          const historyItem: DownloadHistoryItem = {
+            id: downloadId,
+            videoId: result.id,
+            title: result.title,
+            artist: result.artist,
+            thumbnail: thumbnailUrl,
+            format: format,
+            downloadedAt: new Date().toISOString(),
+            filePath: filePath,
+          };
+          const updatedHistory = await window.electronAPI.addToDownloadHistory(historyItem);
+          setDownloadHistory(updatedHistory);
+        }
       }
     } catch (error) {
-      setDownloads((prev) =>
-        prev.map((d) =>
+      setDownloads(prev =>
+        prev.map(d =>
           d.id === downloadId
             ? {
                 ...d,
@@ -211,7 +284,7 @@ export default function DownloaderPage(): JSX.Element {
       if (window.electronAPI) {
         await window.electronAPI.cancelDownload(id);
       }
-      setDownloads((prev) => prev.filter((d) => d.id !== id));
+      setDownloads(prev => prev.filter(d => d.id !== id));
     } catch (error) {
       console.error('Error canceling download:', error);
     }
@@ -231,29 +304,59 @@ export default function DownloaderPage(): JSX.Element {
   };
 
   const clearCompleted = () => {
-    setDownloads((prev) => prev.filter((d) => d.status === 'downloading'));
+    setDownloads(prev => prev.filter(d => d.status === 'downloading'));
+  };
+
+  const clearAll = () => {
+    setDownloads(prev => prev.filter(d => d.status === 'downloading'));
+  };
+
+  const clearHistory = async () => {
+    try {
+      if (window.electronAPI?.clearDownloadHistory) {
+        await window.electronAPI.clearDownloadHistory();
+        setDownloadHistory([]);
+      }
+    } catch (error) {
+      console.error('Error clearing download history:', error);
+    }
+  };
+
+  const formatHistoryDate = (dateStr: string): string => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Agora';
+    if (diffMins < 60) return `${diffMins}m atrás`;
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    if (diffDays < 7) return `${diffDays}d atrás`;
+    return date.toLocaleDateString('pt-BR');
   };
 
   const handlePreview = (result: SearchResult) => {
-    // Open YouTube video in default browser
     const url = `https://www.youtube.com/watch?v=${result.id}`;
     window.open(url, '_blank');
   };
 
-  // Generate high quality thumbnail URL
   const getThumbnailUrl = (result: SearchResult): string => {
-    // If we already have a thumbnail, use it
     if (result.thumbnail && result.thumbnail.length > 0) {
       return result.thumbnail;
     }
-    // Fallback to YouTube thumbnail URL format
     return `https://i.ytimg.com/vi/${result.id}/mqdefault.jpg`;
   };
 
+  const activeDownloads = downloads.filter(d => d.status === 'downloading');
+  const completedDownloads = downloads.filter(d => d.status === 'completed');
+  const errorDownloads = downloads.filter(d => d.status === 'error');
+
   return (
-    <div className="space-y-6 animate-slideUp">
+    <div className="h-full flex flex-col gap-4 animate-slideUp">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-shrink-0">
         <div>
           <h1 className="text-theme-title font-bold text-text-primary">Download</h1>
           <p className="text-text-secondary">Baixe músicas do YouTube</p>
@@ -263,31 +366,21 @@ export default function DownloaderPage(): JSX.Element {
           {/* yt-dlp & ffmpeg status */}
           {ytdlpStatus && (
             <div className="flex items-center gap-3 px-3 py-1.5 bg-bg-tertiary rounded-lg">
-              {/* yt-dlp status */}
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${ytdlpStatus.installed ? 'bg-green-500' : 'bg-red-500'}`} />
-                <span className="text-xs text-text-secondary">
-                  {ytdlpStatus.installed ? `yt-dlp` : 'yt-dlp'}
-                </span>
+                <span className="text-xs text-text-secondary">yt-dlp</span>
               </div>
-
-              {/* ffmpeg status */}
               <div className="flex items-center gap-1.5">
                 <div className={`w-2 h-2 rounded-full ${ytdlpStatus.ffmpegInstalled ? 'bg-green-500' : 'bg-yellow-500'}`} />
                 <span className="text-xs text-text-secondary">ffmpeg</span>
               </div>
-
               {(!ytdlpStatus.installed || !ytdlpStatus.ffmpegInstalled) && (
                 <button
                   onClick={handleInstallYtDlp}
                   disabled={isInstallingYtdlp}
                   className="ml-1 px-2 py-0.5 text-xs bg-accent-primary hover:bg-accent-hover text-white rounded transition-colors disabled:opacity-50"
                 >
-                  {isInstallingYtdlp ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    'Instalar'
-                  )}
+                  {isInstallingYtdlp ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Instalar'}
                 </button>
               )}
               <button
@@ -303,9 +396,7 @@ export default function DownloaderPage(): JSX.Element {
           <button
             onClick={() => setShowSettings(!showSettings)}
             className={`p-2 rounded-lg transition-colors ${
-              showSettings
-                ? 'bg-accent-primary text-white'
-                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+              showSettings ? 'bg-accent-primary text-white' : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
             }`}
           >
             <Settings className="w-5 h-5" />
@@ -320,309 +411,361 @@ export default function DownloaderPage(): JSX.Element {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-bg-secondary rounded-xl p-6 border border-bg-tertiary overflow-hidden"
+            className="bg-bg-secondary rounded-xl p-4 border border-bg-tertiary overflow-hidden flex-shrink-0"
           >
-            <h3 className="text-lg font-medium text-text-primary mb-4">
-              Configurações de Download
-            </h3>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Format */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-2">
-                  Formato
-                </label>
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <label className="block text-xs text-text-secondary mb-1">Formato</label>
                 <select
                   value={format}
                   onChange={(e) => setFormat(e.target.value as AudioFormat)}
-                  className="input"
+                  className="input w-full"
                 >
                   {formatOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
               </div>
-
-              {/* Folder */}
-              <div>
-                <label className="block text-sm text-text-secondary mb-2">
-                  Pasta de destino
-                </label>
+              <div className="flex-1">
+                <label className="block text-xs text-text-secondary mb-1">Pasta de destino</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={downloadFolder}
                     readOnly
-                    placeholder="Usar pasta padrão"
-                    className="input flex-1"
+                    placeholder="Pasta padrão"
+                    className="input flex-1 text-sm"
                   />
-                  <button
-                    onClick={handleSelectFolder}
-                    className="btn btn-secondary"
-                  >
+                  <button onClick={handleSelectFolder} className="btn btn-secondary">
                     <Folder className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* Options */}
-            <div className="flex flex-wrap gap-4 mt-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoAddToLibrary}
-                  onChange={(e) => setAutoAddToLibrary(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-text-muted checked:border-accent-primary checked:bg-accent-primary"
-                />
-                <span className="text-sm text-text-secondary">
-                  Adicionar à biblioteca automaticamente
-                </span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={downloadThumbnail}
-                  onChange={(e) => setDownloadThumbnail(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-text-muted checked:border-accent-primary checked:bg-accent-primary"
-                />
-                <span className="text-sm text-text-secondary">
-                  Baixar thumbnail como capa
-                </span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoMetadata}
-                  onChange={(e) => setAutoMetadata(e.target.checked)}
-                  className="w-4 h-4 rounded border-2 border-text-muted checked:border-accent-primary checked:bg-accent-primary"
-                />
-                <span className="text-sm text-text-secondary">
-                  Preencher metadados automaticamente
-                </span>
-              </label>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Search */}
-      <div className="bg-bg-secondary rounded-xl p-6 border border-bg-tertiary">
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Buscar música ou colar link do YouTube..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              className="input w-full"
-            />
-          </div>
-          <button
-            onClick={handleSearch}
-            disabled={isSearching || !searchQuery.trim()}
-            className="btn btn-primary disabled:opacity-50 flex items-center gap-2"
-          >
-            {isSearching ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                <Search className="w-5 h-5" />
-                <span className="hidden sm:inline">Buscar</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* Search error */}
-        {searchError && (
-          <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-            <p className="text-sm text-red-400">{searchError}</p>
-          </div>
-        )}
-
-        {/* Search results */}
-        {searchResults.length > 0 && (
-          <div className="mt-4 space-y-2">
-            <h3 className="text-sm font-medium text-text-secondary mb-2">
-              Resultados
-            </h3>
-            {searchResults.map((result) => (
-              <motion.div
-                key={result.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex items-center gap-4 p-3 rounded-lg bg-bg-tertiary hover:bg-accent-primary/10 transition-colors"
+      {/* Main content - 2 columns */}
+      <div className="flex-1 flex gap-4 min-h-0">
+        {/* Left column - Search */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* Search bar */}
+          <div className="bg-bg-secondary rounded-xl p-4 border border-bg-tertiary flex-shrink-0">
+            <div className="flex gap-3">
+              <input
+                type="text"
+                placeholder="Buscar música ou colar link do YouTube..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                className="input flex-1"
+              />
+              <button
+                onClick={handleSearch}
+                disabled={isSearching || !searchQuery.trim()}
+                className="btn btn-primary disabled:opacity-50 flex items-center gap-2"
               >
-                {/* Thumbnail */}
-                <div className="w-12 h-12 rounded bg-bg-primary flex items-center justify-center flex-shrink-0 overflow-hidden relative">
-                  <img
-                    src={getThumbnailUrl(result)}
-                    alt={result.title}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      // On error, try fallback URL
-                      const target = e.target as HTMLImageElement;
-                      const fallbackUrl = `https://i.ytimg.com/vi/${result.id}/hqdefault.jpg`;
-                      if (target.src !== fallbackUrl) {
-                        target.src = fallbackUrl;
-                      } else {
-                        // If fallback also fails, hide image
-                        target.style.display = 'none';
-                      }
-                    }}
-                  />
-                </div>
-
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <h4 className="text-sm font-medium text-text-primary truncate">
-                    {result.title}
-                  </h4>
-                  <p className="text-xs text-text-secondary">
-                    {result.artist} • {result.duration}
-                  </p>
-                </div>
-
-                {/* Preview button */}
-                <button
-                  onClick={() => handlePreview(result)}
-                  className="p-2 rounded-lg bg-bg-primary hover:bg-accent-primary/20 text-text-secondary hover:text-accent-primary transition-colors"
-                  title="Ouvir no YouTube"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </button>
-
-                {/* Download button */}
-                <button
-                  onClick={() => handleDownload(result)}
-                  className="p-2 rounded-lg bg-accent-primary hover:bg-accent-hover text-white transition-colors"
-                  title="Baixar"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Downloads */}
-      {downloads.length > 0 && (
-        <div className="bg-bg-secondary rounded-xl p-6 border border-bg-tertiary">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-text-primary">Downloads</h3>
-            <button
-              onClick={clearCompleted}
-              className="text-sm text-text-secondary hover:text-text-primary transition-colors"
-            >
-              Limpar concluídos
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {downloads.map((download) => (
-              <motion.div
-                key={download.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="p-4 rounded-lg bg-bg-tertiary"
-              >
-                <div className="flex items-center gap-4">
-                  {/* Status icon */}
-                  <div className="flex-shrink-0">
-                    {download.status === 'downloading' && (
-                      <Loader2 className="w-5 h-5 text-accent-primary animate-spin" />
-                    )}
-                    {download.status === 'completed' && (
-                      <CheckCircle className="w-5 h-5 text-green-500" />
-                    )}
-                    {download.status === 'error' && (
-                      <AlertCircle className="w-5 h-5 text-red-500" />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-text-primary truncate">
-                      {download.title}
-                    </h4>
-                    {download.status === 'downloading' && (
-                      <p className="text-xs text-text-secondary">
-                        {download.speed} • Resta: {download.eta}
-                      </p>
-                    )}
-                    {download.status === 'completed' && (
-                      <p className="text-xs text-green-500">
-                        Adicionado à biblioteca
-                      </p>
-                    )}
-                    {download.status === 'error' && (
-                      <p className="text-xs text-red-500">{download.error}</p>
-                    )}
-                  </div>
-
-                  {/* Progress or cancel */}
-                  {download.status === 'downloading' && (
-                    <>
-                      <span className="text-sm text-text-secondary">
-                        {download.progress}%
-                      </span>
-                      <button
-                        onClick={() => handleCancelDownload(download.id)}
-                        className="p-1 rounded hover:bg-bg-primary transition-colors"
-                        title="Cancelar"
-                      >
-                        <X className="w-4 h-4 text-text-secondary hover:text-red-500" />
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {/* Progress bar */}
-                {download.status === 'downloading' && (
-                  <div className="mt-3 h-1.5 bg-bg-primary rounded-full overflow-hidden">
-                    <motion.div
-                      className="h-full bg-accent-primary"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${download.progress}%` }}
-                      transition={{ duration: 0.3 }}
-                    />
-                  </div>
+                {isSearching ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>
+                    <Search className="w-5 h-5" />
+                    <span className="hidden sm:inline">Buscar</span>
+                  </>
                 )}
-              </motion.div>
-            ))}
+              </button>
+            </div>
+
+            {searchError && (
+              <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <p className="text-sm text-red-400">{searchError}</p>
+              </div>
+            )}
+          </div>
+
+          {/* Search results */}
+          <div className="flex-1 mt-4 overflow-y-auto">
+            {searchResults.length > 0 ? (
+              <div className="space-y-2">
+                {searchResults.map((result) => {
+                  const downloading = isDownloading(result.id);
+                  return (
+                    <motion.div
+                      key={result.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`flex items-center gap-4 p-3 rounded-lg bg-bg-secondary border border-bg-tertiary hover:border-accent-primary/30 transition-colors ${
+                        downloading ? 'opacity-70' : ''
+                      }`}
+                    >
+                      {/* Thumbnail with loading overlay */}
+                      <div className="w-12 h-12 rounded bg-bg-tertiary flex-shrink-0 overflow-hidden relative">
+                        <img
+                          src={getThumbnailUrl(result)}
+                          alt={result.title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = `https://i.ytimg.com/vi/${result.id}/hqdefault.jpg`;
+                          }}
+                        />
+                        {downloading && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                            <Loader2 className="w-5 h-5 text-white animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-medium text-text-primary truncate">{result.title}</h4>
+                        <p className="text-xs text-text-secondary">{result.artist} • {result.duration}</p>
+                      </div>
+
+                      {/* Actions */}
+                      <button
+                        onClick={() => handlePreview(result)}
+                        className="p-2 rounded-lg bg-bg-tertiary hover:bg-accent-primary/20 text-text-secondary hover:text-accent-primary transition-colors"
+                        title="Ouvir no YouTube"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDownload(result)}
+                        disabled={downloading}
+                        className="p-2 rounded-lg bg-accent-primary hover:bg-accent-hover text-white transition-colors disabled:opacity-50"
+                        title={downloading ? 'Baixando...' : 'Baixar'}
+                      >
+                        {downloading ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                      </button>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center py-12">
+                <Search className="w-12 h-12 text-text-muted mb-3" />
+                <p className="text-text-secondary">Busque uma música para começar</p>
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      {/* Empty state */}
-      {searchResults.length === 0 && downloads.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Download className="w-16 h-16 text-text-muted mb-4" />
-          <h3 className="text-lg font-medium text-text-primary mb-2">
-            Pronto para baixar
-          </h3>
-          <p className="text-text-secondary max-w-md">
-            Busque uma música ou cole um link do YouTube para começar a baixar
-          </p>
+        {/* Right column - Download Manager */}
+        <div className="w-80 flex-shrink-0 bg-bg-secondary rounded-xl border border-bg-tertiary flex flex-col">
+          {/* Header with tabs */}
+          <div className="p-3 border-b border-bg-tertiary">
+            {/* Tabs */}
+            <div className="flex gap-1 mb-3 p-1 bg-bg-tertiary rounded-lg">
+              <button
+                onClick={() => setActiveTab('active')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeTab === 'active'
+                    ? 'bg-accent-primary text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Ativos</span>
+                {activeDownloads.length > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-white/20 text-[10px]">
+                    {activeDownloads.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  activeTab === 'history'
+                    ? 'bg-accent-primary text-white'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <History className="w-3.5 h-3.5" />
+                <span>Histórico</span>
+                {downloadHistory.length > 0 && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    activeTab === 'history' ? 'bg-white/20' : 'bg-bg-primary'
+                  }`}>
+                    {downloadHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Download folder info */}
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <FolderOpen className="w-3.5 h-3.5" />
+              <span className="truncate">{downloadFolder || 'Pasta padrão'}</span>
+            </div>
+          </div>
+
+          {/* Downloads list */}
+          <div className="flex-1 overflow-y-auto p-2">
+            <AnimatePresence mode="wait">
+              {activeTab === 'active' ? (
+                /* Active Downloads Tab */
+                downloads.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                    <Music className="w-10 h-10 text-text-muted mb-2" />
+                    <p className="text-xs text-text-muted">Nenhum download ativo</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Active downloads */}
+                    {activeDownloads.map((download) => (
+                      <div
+                        key={download.id}
+                        className="p-3 rounded-lg bg-bg-tertiary"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded bg-bg-primary flex-shrink-0 overflow-hidden">
+                            <img
+                              src={download.thumbnail}
+                              alt={download.title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-xs font-medium text-text-primary truncate">{download.title}</h4>
+                            <p className="text-xs text-text-muted truncate">{download.artist}</p>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-accent-primary">
+                              <Clock className="w-3 h-3" />
+                              <span>{formatElapsedTime(download.startedAt)}</span>
+                              <span className="text-text-muted">•</span>
+                              <span>{download.speed}</span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleCancelDownload(download.id)}
+                            className="p-1 rounded hover:bg-bg-primary transition-colors"
+                            title="Cancelar"
+                          >
+                            <X className="w-4 h-4 text-text-muted hover:text-red-500" />
+                          </button>
+                        </div>
+                        <div className="mt-2 h-1 bg-bg-primary rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-accent-primary"
+                            style={{ width: `${download.progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between mt-1 text-xs text-text-muted">
+                          <span>{download.progress}%</span>
+                          <span>ETA: {download.eta}</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Completed downloads */}
+                    {completedDownloads.map((download) => (
+                      <div
+                        key={download.id}
+                        className="p-2 rounded-lg bg-green-500/10 border border-green-500/20 flex items-center gap-2"
+                      >
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
+                        <span className="text-xs text-text-primary truncate flex-1">{download.title}</span>
+                      </div>
+                    ))}
+
+                    {/* Error downloads */}
+                    {errorDownloads.map((download) => (
+                      <div
+                        key={download.id}
+                        className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center gap-2"
+                      >
+                        <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                        <span className="text-xs text-text-primary truncate flex-1">{download.title}</span>
+                        <button
+                          onClick={() => setDownloads(prev => prev.filter(d => d.id !== download.id))}
+                          className="p-1 hover:bg-red-500/20 rounded transition-colors"
+                        >
+                          <X className="w-3 h-3 text-red-500" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : (
+                /* History Tab */
+                downloadHistory.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center py-8">
+                    <History className="w-10 h-10 text-text-muted mb-2" />
+                    <p className="text-xs text-text-muted">Nenhum download no histórico</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {/* Clear history button */}
+                    <button
+                      onClick={clearHistory}
+                      className="w-full p-2 text-xs text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Limpar histórico</span>
+                    </button>
+
+                    {/* History items */}
+                    {downloadHistory.map((item) => (
+                      <div
+                        key={item.id}
+                        className="p-2 rounded-lg bg-bg-tertiary flex items-center gap-3"
+                      >
+                        <div className="w-8 h-8 rounded bg-bg-primary flex-shrink-0 overflow-hidden">
+                          {item.thumbnail ? (
+                            <img
+                              src={item.thumbnail}
+                              alt={item.title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Music className="w-4 h-4 text-text-muted" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-xs font-medium text-text-primary truncate">{item.title}</h4>
+                          <div className="flex items-center gap-2 text-[10px] text-text-muted">
+                            <span>{item.format.toUpperCase()}</span>
+                            <span>•</span>
+                            <span>{formatHistoryDate(item.downloadedAt)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Footer stats */}
+          <div className="p-3 border-t border-bg-tertiary text-xs text-text-muted text-center">
+            {activeTab === 'active' ? (
+              <>
+                {activeDownloads.length > 0 && (
+                  <span className="text-accent-primary">{activeDownloads.length} baixando</span>
+                )}
+                {activeDownloads.length > 0 && completedDownloads.length > 0 && ' • '}
+                {completedDownloads.length > 0 && (
+                  <span className="text-green-500">{completedDownloads.length} concluídos</span>
+                )}
+                {activeDownloads.length === 0 && completedDownloads.length === 0 && 'Pronto para baixar'}
+              </>
+            ) : (
+              <span>{downloadHistory.length} músicas no histórico</span>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Info notice */}
-      <div className="bg-accent-primary/10 border border-accent-primary/20 rounded-xl p-4">
-        <p className="text-sm text-text-secondary">
-          <strong className="text-accent-primary">Nota:</strong> O recurso de download
-          utiliza o yt-dlp para baixar áudio do YouTube. Certifique-se de respeitar
-          os direitos autorais e as leis locais.
-        </p>
       </div>
     </div>
   );

@@ -62,28 +62,28 @@ export default function HomePage(): JSX.Element {
       {/* Stats cards */}
       <section className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
-          icon={<Music className="w-5 h-5" />}
+          icon={<Music className="w-6 h-6" />}
           label="Total de Músicas"
           value={stats?.totalTracks?.toString() || '0'}
-          color="from-purple-500 to-violet-600"
+          color="text-purple-400"
         />
         <StatCard
-          icon={<Clock className="w-5 h-5" />}
+          icon={<Clock className="w-6 h-6" />}
           label="Tempo Ouvindo"
           value={formatListeningTime(stats?.totalListeningTime || 0)}
-          color="from-blue-500 to-cyan-600"
+          color="text-blue-400"
         />
         <StatCard
-          icon={<PlayCircle className="w-5 h-5" />}
+          icon={<PlayCircle className="w-6 h-6" />}
           label="Músicas Tocadas"
           value={stats?.playedTracks?.toString() || '0'}
-          color="from-green-500 to-emerald-600"
+          color="text-green-400"
         />
         <StatCard
-          icon={<TrendingUp className="w-5 h-5" />}
+          icon={<TrendingUp className="w-6 h-6" />}
           label="Nunca Tocadas"
           value={stats?.neverPlayedTracks?.toString() || '0'}
-          color="from-orange-500 to-amber-600"
+          color="text-orange-400"
         />
       </section>
 
@@ -164,7 +164,7 @@ interface StatCardProps {
 function StatCard({ icon, label, value, color }: StatCardProps): JSX.Element {
   return (
     <div className="bg-bg-secondary rounded-xl p-4 border border-bg-tertiary hover:border-accent-primary/30 transition-colors">
-      <div className={`w-10 h-10 rounded-lg bg-gradient-to-br ${color} flex items-center justify-center text-white mb-3`}>
+      <div className={`mb-3 ${color}`}>
         {icon}
       </div>
       <p className="text-2xl font-bold text-text-primary">{value}</p>
