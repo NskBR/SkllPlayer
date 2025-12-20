@@ -1,41 +1,42 @@
 {
-  "name": "Default Dark",
+  "name": "Glass Mica",
   "author": "SkellBR",
   "version": "1.0.0",
   "type": "dark",
   "category": "official",
+  "windowEffect": "mica",
 
   "colors": {
     "background": {
-      "primary": "#0a0a0f",
-      "secondary": "#12121a",
-      "tertiary": "#1a1a25"
+      "primary": "rgba(25, 25, 35, 0.80)",
+      "secondary": "rgba(35, 35, 50, 0.85)",
+      "tertiary": "rgba(50, 50, 65, 0.90)"
     },
     "text": {
       "primary": "#ffffff",
-      "secondary": "#a0a0b0",
-      "muted": "#606070"
+      "secondary": "rgba(200, 200, 215, 0.95)",
+      "muted": "rgba(150, 150, 170, 0.85)"
     },
     "accent": {
-      "primary": "#8b5cf6",
-      "hover": "#7c3aed",
-      "active": "#6d28d9"
+      "primary": "#a78bfa",
+      "hover": "#8b5cf6",
+      "active": "#7c3aed"
     },
     "player": {
-      "progress": "#8b5cf6",
-      "progressBackground": "#2a2a35",
+      "progress": "#a78bfa",
+      "progressBackground": "rgba(60, 60, 80, 0.6)",
       "controls": "#ffffff"
     },
     "sidebar": {
-      "background": "#08080c",
-      "itemHover": "#15151f",
-      "itemActive": "#8b5cf6"
+      "background": "rgba(20, 20, 30, 0.85)",
+      "itemHover": "rgba(70, 70, 100, 0.5)",
+      "itemActive": "#a78bfa"
     }
   },
 
   "fonts": {
-    "primary": "Inter, system-ui, sans-serif",
-    "secondary": "JetBrains Mono, monospace",
+    "primary": "Segoe UI Variable, Segoe UI, Inter, system-ui, sans-serif",
+    "secondary": "Cascadia Code, JetBrains Mono, monospace",
     "sizes": {
       "small": "12px",
       "normal": "14px",
@@ -70,12 +71,12 @@
       "showArtist": true
     },
     "buttons": {
-      "borderRadius": "8px",
+      "borderRadius": "6px",
       "style": "filled"
     },
     "scrollbar": {
-      "width": "8px",
-      "thumbColor": "#3a3a45",
+      "width": "6px",
+      "thumbColor": "rgba(120, 120, 160, 0.4)",
       "trackColor": "transparent"
     }
   },

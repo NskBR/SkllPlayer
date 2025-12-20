@@ -1,40 +1,54 @@
 {
-  "name": "Midnight Purple",
-  "author": "Community",
+  "name": "Cyberpunk 2077",
+  "author": "SkellBR",
   "version": "1.0.0",
   "type": "dark",
   "category": "community",
 
   "colors": {
     "background": {
-      "primary": "#1a1025",
-      "secondary": "#2d1f3d",
-      "tertiary": "#3d2a54"
+      "primary": "#0a0005",
+      "secondary": "#170005",
+      "tertiary": "#1a0a10",
+      "gradient": {
+        "enabled": true,
+        "type": "linear",
+        "angle": 180,
+        "colors": ["#170005", "#000000"],
+        "stops": [10, 65]
+      }
     },
     "text": {
-      "primary": "#ffffff",
-      "secondary": "#b8a5c9",
-      "muted": "#6b5a7a"
+      "primary": "#d3d3d3",
+      "secondary": "#72eaf8",
+      "muted": "#666677"
     },
     "accent": {
-      "primary": "#9b59b6",
-      "hover": "#8e44ad",
-      "active": "#7d3c98"
+      "primary": "#72eaf8",
+      "hover": "#5ad4e2",
+      "active": "#42becc"
     },
     "player": {
-      "progress": "#9b59b6",
-      "progressBackground": "#3d2a54",
-      "controls": "#ffffff"
+      "progress": "#ff003c",
+      "progressBackground": "#2a1520",
+      "controls": "#72eaf8"
     },
     "sidebar": {
-      "background": "#150d1f",
-      "itemHover": "#2d1f3d",
-      "itemActive": "#9b59b6"
+      "background": "#0a0308",
+      "itemHover": "#1a0a12",
+      "itemActive": "#ff003c",
+      "gradient": {
+        "enabled": true,
+        "type": "linear",
+        "angle": 180,
+        "colors": ["#170005", "#050002"],
+        "stops": [0, 100]
+      }
     }
   },
 
   "fonts": {
-    "primary": "Inter, system-ui, sans-serif",
+    "primary": "Rajdhani, Inter, system-ui, sans-serif",
     "secondary": "JetBrains Mono, monospace",
     "sizes": {
       "small": "12px",
@@ -62,7 +76,7 @@
   },
 
   "components": {
-    "borderRadius": "12px",
+    "borderRadius": "4px",
     "trackItem": {
       "height": "60px",
       "thumbnailSize": "48px",
@@ -70,12 +84,12 @@
       "showArtist": true
     },
     "buttons": {
-      "borderRadius": "20px",
+      "borderRadius": "4px",
       "style": "filled"
     },
     "scrollbar": {
-      "width": "8px",
-      "thumbColor": "#6b5a7a",
+      "width": "6px",
+      "thumbColor": "#ff003c",
       "trackColor": "transparent"
     }
   },
@@ -83,7 +97,7 @@
   "effects": {
     "blur": true,
     "animations": true,
-    "transitionSpeed": "200ms",
+    "transitionSpeed": "150ms",
     "hoverScale": 1.02
   }
 }

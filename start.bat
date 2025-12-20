@@ -1,22 +1,17 @@
 @echo off
 cd /d "%~dp0"
 
-echo Building main process...
+echo Compilando TypeScript...
 call npx tsc -p tsconfig.main.json
-if errorlevel 1 (
-    echo Build failed!
-    pause
-    exit /b 1
-)
 
-echo Starting Vite dev server...
-start /b /min "" npx vite >nul 2>&1
+echo Iniciando Vite...
+start "" npx vite
 
-echo Waiting for Vite to be ready...
-:waitloop
+echo Aguardando servidor...
+:wait
 timeout /t 1 /nobreak >nul
 curl -s http://localhost:5173 >nul 2>&1
-if errorlevel 1 goto waitloop
+if errorlevel 1 goto wait
 
-echo Starting SkllPlayer...
+echo Iniciando Electron...
 npx electron .

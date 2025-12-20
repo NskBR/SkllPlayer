@@ -1,41 +1,42 @@
 {
-  "name": "Default Dark",
+  "name": "Glass Acrylic",
   "author": "SkellBR",
   "version": "1.0.0",
   "type": "dark",
   "category": "official",
+  "windowEffect": "acrylic",
 
   "colors": {
     "background": {
-      "primary": "#0a0a0f",
-      "secondary": "#12121a",
-      "tertiary": "#1a1a25"
+      "primary": "rgba(20, 20, 30, 0.65)",
+      "secondary": "rgba(30, 30, 45, 0.70)",
+      "tertiary": "rgba(45, 45, 60, 0.75)"
     },
     "text": {
       "primary": "#ffffff",
-      "secondary": "#a0a0b0",
-      "muted": "#606070"
+      "secondary": "rgba(200, 200, 220, 0.9)",
+      "muted": "rgba(140, 140, 160, 0.8)"
     },
     "accent": {
-      "primary": "#8b5cf6",
-      "hover": "#7c3aed",
-      "active": "#6d28d9"
+      "primary": "#60a5fa",
+      "hover": "#3b82f6",
+      "active": "#2563eb"
     },
     "player": {
-      "progress": "#8b5cf6",
-      "progressBackground": "#2a2a35",
+      "progress": "#60a5fa",
+      "progressBackground": "rgba(60, 60, 80, 0.5)",
       "controls": "#ffffff"
     },
     "sidebar": {
-      "background": "#08080c",
-      "itemHover": "#15151f",
-      "itemActive": "#8b5cf6"
+      "background": "rgba(15, 15, 25, 0.75)",
+      "itemHover": "rgba(60, 60, 90, 0.5)",
+      "itemActive": "#60a5fa"
     }
   },
 
   "fonts": {
-    "primary": "Inter, system-ui, sans-serif",
-    "secondary": "JetBrains Mono, monospace",
+    "primary": "Segoe UI, Inter, system-ui, sans-serif",
+    "secondary": "Cascadia Code, JetBrains Mono, monospace",
     "sizes": {
       "small": "12px",
       "normal": "14px",
@@ -62,7 +63,7 @@
   },
 
   "components": {
-    "borderRadius": "8px",
+    "borderRadius": "12px",
     "trackItem": {
       "height": "60px",
       "thumbnailSize": "48px",
@@ -70,12 +71,12 @@
       "showArtist": true
     },
     "buttons": {
-      "borderRadius": "8px",
+      "borderRadius": "10px",
       "style": "filled"
     },
     "scrollbar": {
-      "width": "8px",
-      "thumbColor": "#3a3a45",
+      "width": "6px",
+      "thumbColor": "rgba(100, 100, 140, 0.5)",
       "trackColor": "transparent"
     }
   },

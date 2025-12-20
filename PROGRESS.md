@@ -25,8 +25,18 @@
 - [x] Tema **Default Dark** (padrão)
 - [x] Tema **Default Light**
 - [x] Tema **Midnight Purple** (exemplo de tema da comunidade)
+- [x] Tema **Cyberpunk 2077** (gradientes vermelho/preto, cores neon cyan/vermelho)
+- [x] Tema **Glass Acrylic** (transparência com efeito acrylic do Windows)
+- [x] Tema **Glass Mica** (transparência com efeito mica do Windows 11)
 - [x] Documentação de como criar temas customizados (`themes/README.md`)
 - [x] Suporte a customização de cores, fontes, layout, componentes e efeitos
+- [x] **Suporte a gradientes** - Background e sidebar com gradientes configuráveis
+- [x] **Interface modular** - Layout configurável via tema ou in-app
+- [x] **Overrides de usuário** - Personalizações sobre qualquer tema
+- [x] **Categorização de temas** - Separação entre "Oficiais" e "Comunidade"
+- [x] **Botão de atualizar temas** - Recarrega lista sem reiniciar o app
+- [x] **Efeitos de janela** - Suporte a Mica, Acrylic, Tabbed (Windows 10/11)
+- [x] **Gerador de paleta automático** - Escolhe 1 cor base e gera todas as outras
 
 ### Páginas Criadas
 - [x] **Home** - Tela inicial com estatísticas, favoritas e atalhos rápidos
@@ -130,50 +140,31 @@
 
 ## Concluído Recentemente (Sessão Atual)
 
-### Bugs Corrigidos
-- [x] **Bug: Metadados não baixando** - Agora usa metadados do YouTube como fallback
-- [x] **Bug: Tempo de escuta não contabilizando** - Corrigido tracking com debounce a cada 10s
-- [x] **Bug: Sliders descentralizados** - Corrigido posicionamento com transform translate
-- [x] **Bug: Favoritos recarregando tudo** - Agora atualiza apenas a faixa específica
+### Sistema de Temas Avançado
+- [x] **Categorização de temas** - Temas separados em "Oficiais" e "Comunidade" na UI
+- [x] **Botão de atualizar** - Recarrega temas da pasta sem reiniciar o app
+- [x] **Efeitos de janela (Windows)** - Suporte a Mica, Acrylic, Tabbed via `windowEffect`
+- [x] **Tema Glass Acrylic** - Cores semi-transparentes com blur do que está atrás
+- [x] **Tema Glass Mica** - Cores semi-transparentes com blur do wallpaper
 
-### Melhorias de UI
-- [x] **Sidebar reorganizada** - Categorias "Biblioteca" e "Gerenciamento"
-- [x] **Ícones coloridos** - Cada ícone com cor única + efeito glow no hover
-- [x] **Logo do app** - Adicionada na sidebar (quando expandida)
-- [x] **Titlebar simplificada** - Nome centralizado, sem logo redundante
-- [x] **Indicador de download** - Loading spinner na thumbnail durante download
+### Gerador de Paleta Automático
+- [x] **Modo Automático** - Escolhe 1 cor base e o app gera toda a paleta
+- [x] **Conversão HSL** - Gera variações ajustando luminosidade/saturação
+- [x] **Detecção claro/escuro** - Ajusta cores de texto automaticamente
+- [x] **Cor de destaque separada** - Accent color independente da cor base
+- [x] **Preview em tempo real** - Mostra paleta gerada antes de aplicar
 
-### Novas Funcionalidades
-- [x] **Auto-save** - Equalizador e Configurações salvam automaticamente
-- [x] **Wizard de primeiro uso** - Modal pedindo pasta de músicas na primeira execução
-- [x] **Nova interface do Downloader** - 2 colunas com gerenciador sempre visível
-- [x] **Histórico de downloads** - Lista persistente das músicas baixadas
-- [x] **Virtualização da lista** - TrackList otimizada com @tanstack/react-virtual
-
-### Otimizações de Performance
-- [x] **FPS melhorado** - Throttle nas atualizações de currentTime (60fps → 4fps)
-- [x] **Memoização** - TrackListItem com memo() e comparação customizada
-- [x] **Animações GPU** - playing-bar usa transform ao invés de opacity
+### Scripts de Inicialização
+- [x] **start.bat melhorado** - Tenta rodar sem mostrar CMD
+- [x] **start-dev.bat** - Modo desenvolvimento com CMD visível e DevTools
+- [x] **DevTools condicional** - Só abre quando `SKLLPLAYER_DEV=1`
+- [x] **SkllPlayer.lnk** - Atalho para abrir minimizado
+- [x] **start.ps1** - Script PowerShell alternativo
 
 ### Splash Screen
-- [x] **Splash screen reativada** - Corrigida lógica de transição
-- [x] **Logo embarcada** - Converte para base64 para exibição
-- [x] **Transição suave** - Mínimo 1.5s de exibição + fallback 5s
-
-### Crossfade (Não Funcional)
-- [ ] **Crossfade entre músicas** - Implementado mas não funcionando corretamente
-- [x] **Configuração opcional** - Toggle on/off em Configurações
-- [x] **Duração configurável** - Slider de 1s a 10s (padrão: 3s)
-
-### Gapless Playback
-- [x] **Pré-carregamento** - Próxima faixa é carregada enquanto a atual toca
-- [x] **Transição instantânea** - Usa faixa pré-carregada quando disponível
-- [x] **Limpeza de recursos** - Libera memória ao trocar de faixa
-
-### Normalização de Volume
-- [x] **Compressor dinâmico** - Usa DynamicsCompressorNode para nivelar volume
-- [x] **Toggle on/off** - Configurável em Configurações
-- [x] **Persistência** - Salva preferência do usuário
+- [x] **Logo simplificada** - Removido container, símbolo ₪ direto
+- [x] **Efeito glow** - Animação de text-shadow pulsante
+- [x] **Centralização** - Ajustes de margin para alinhar símbolo rotacionado
 
 ---
 
@@ -232,7 +223,15 @@ SkllPlayer/
 │   ├── default-dark.theme.json
 │   ├── default-light.theme.json
 │   ├── midnight-purple.theme.json
+│   ├── cyberpunk-2077.theme.json
+│   ├── glass-acrylic.theme.json
+│   ├── glass-mica.theme.json
 │   └── README.md
+│
+├── start.bat              # Inicia o app (tenta ocultar CMD)
+├── start-dev.bat          # Inicia com DevTools e CMD visível
+├── start.ps1              # Script PowerShell alternativo
+├── SkllPlayer.lnk         # Atalho para iniciar minimizado
 │
 └── package.json
 ```
@@ -241,16 +240,22 @@ SkllPlayer/
 
 ## Como Rodar
 
+### Modo Normal (sem CMD)
+```
+Duplo clique em: SkllPlayer.lnk
+```
+
+### Modo Desenvolvimento (com DevTools)
+```
+Duplo clique em: start-dev.bat
+```
+
+### Via Terminal
 ```bash
 cd SkllPlayer
 npm install
 npm run dev:renderer   # Terminal 1 - Inicia Vite
 npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
-```
-
-Ou em um comando:
-```bash
-npm run electron:dev
 ```
 
 ---
@@ -321,6 +326,13 @@ npm run electron:dev
 - Usa Howler.js para reprodução
 - Protocolo customizado `media://` para arquivos locais
 - Conecta ao equalizador quando disponível
+
+### Interface Modular (useTheme.tsx)
+- **Layout overrides**: Usuário pode sobrescrever posições (sidebar, player, titlebar)
+- **Color overrides**: Usuário pode sobrescrever cores do tema
+- Overrides são persistidos separadamente em `settings.layoutOverrides` e `settings.colorOverrides`
+- Temas definem valores padrão, overrides têm prioridade
+- Função `applyThemeToCSS()` mescla tema com overrides
 
 ---
 

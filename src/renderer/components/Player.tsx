@@ -77,6 +77,42 @@ export default function Player(): JSX.Element {
     setIsFavorite(currentTrack?.isFavorite || false);
   }, [currentTrack]);
 
+  // Update Discord Rich Presence and WebSocket for Vencord
+  useEffect(() => {
+    const updatePresence = async () => {
+      if (!window.electronAPI) return;
+
+      // Check if Discord Rich Presence is enabled
+      const settings = await window.electronAPI.getSettings();
+      const isEnabled = settings.discordRichPresence ?? true;
+
+      if (!isEnabled) {
+        window.electronAPI.clearDiscordPresence();
+        window.electronAPI.updateWebSocketTrack(null);
+        return;
+      }
+
+      if (currentTrack) {
+        const trackData = {
+          title: currentTrack.title,
+          artist: currentTrack.artist,
+          album: currentTrack.album,
+          thumbnail: currentTrack.thumbnail,
+          duration: duration,
+          currentTime: currentTime,
+          isPlaying: isPlaying,
+        };
+        window.electronAPI.updateDiscordPresence(trackData);
+        window.electronAPI.updateWebSocketTrack(trackData);
+      } else {
+        window.electronAPI.clearDiscordPresence();
+        window.electronAPI.updateWebSocketTrack(null);
+      }
+    };
+
+    updatePresence();
+  }, [currentTrack, isPlaying, duration]);
+
   // Update local volume when store volume changes
   useEffect(() => {
     if (!isDraggingVolume) {
