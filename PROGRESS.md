@@ -1,6 +1,6 @@
 # SkllPlayer - Progresso do Desenvolvimento
 
-## Status Atual: Em Desenvolvimento (v0.1 Build Test)
+## Status Atual: Em Desenvolvimento (v0.1.0)
 
 ---
 
@@ -19,6 +19,7 @@
 - [x] **Sidebar recolhível** (botão para expandir/recolher)
 - [x] **Layout responsivo** com suporte a diferentes posições (configurável via tema)
 - [x] **Animações suaves** com Framer Motion
+- [x] **Logo animada** - Componente com barras de áudio animadas
 
 ### Sistema de Temas
 - [x] Engine de temas que lê arquivos JSON
@@ -47,7 +48,7 @@
 - [x] **Equalizador** - Controles de EQ com presets e efeitos (interface pronta)
 - [x] **Download** - Interface preparada para baixar músicas (UI pronta)
 - [x] **Estatísticas** - Tempo de escuta, top 5, músicas nunca tocadas
-- [x] **Configurações** - Pasta de músicas, tema, reset de dados
+- [x] **Configurações** - Pasta de músicas, tema, reset de dados, organizado em categorias
 
 ### Biblioteca de Músicas
 - [x] Seleção de pasta de músicas
@@ -136,49 +137,81 @@
 - [x] **Botão de preview** - Abre o vídeo no YouTube antes de baixar
 - [x] **Barra de busca corrigida** - Ícone movido para o botão à direita
 
----
+### Discord Rich Presence
+- [x] **Integração com discord-rpc** - Mostra música atual no Discord
+- [x] **WebSocket Server** - Porta 6463 para comunicação com Vencord
+- [x] **Plugin Vencord** - Permite mostrar "Ouvindo" sem Game Activity
+- [x] **Informações exibidas** - Título, artista, progresso da música
+- [x] **Configurável** - Toggle para ativar/desativar nas configurações
 
-## Concluído Recentemente (Sessão Atual)
+### System Tray
+- [x] **Ícone na bandeja** - Minimiza para tray ao invés de fechar
+- [x] **Menu de contexto** - Abrir, Play/Pause, Próxima, Anterior, Sair
+- [x] **Duplo-clique** - Restaura a janela
+- [x] **Dialog de comportamento** - Pergunta se quer minimizar ou fechar ao clicar no X
+- [x] **Lembrar escolha** - Opção para não perguntar novamente
+- [x] **Configuração** - Alterável nas configurações do app
 
-### Sistema de Temas Avançado
-- [x] **Categorização de temas** - Temas separados em "Oficiais" e "Comunidade" na UI
-- [x] **Botão de atualizar** - Recarrega temas da pasta sem reiniciar o app
-- [x] **Efeitos de janela (Windows)** - Suporte a Mica, Acrylic, Tabbed via `windowEffect`
-- [x] **Tema Glass Acrylic** - Cores semi-transparentes com blur do que está atrás
-- [x] **Tema Glass Mica** - Cores semi-transparentes com blur do wallpaper
-
-### Gerador de Paleta Automático
-- [x] **Modo Automático** - Escolhe 1 cor base e o app gera toda a paleta
-- [x] **Conversão HSL** - Gera variações ajustando luminosidade/saturação
-- [x] **Detecção claro/escuro** - Ajusta cores de texto automaticamente
-- [x] **Cor de destaque separada** - Accent color independente da cor base
-- [x] **Preview em tempo real** - Mostra paleta gerada antes de aplicar
-
-### Scripts de Inicialização
-- [x] **start.bat melhorado** - Tenta rodar sem mostrar CMD
-- [x] **start-dev.bat** - Modo desenvolvimento com CMD visível e DevTools
-- [x] **DevTools condicional** - Só abre quando `SKLLPLAYER_DEV=1`
-- [x] **SkllPlayer.lnk** - Atalho para abrir minimizado
-- [x] **start.ps1** - Script PowerShell alternativo
+### Configurações Reorganizadas
+- [x] **Menu lateral** - Sidebar com categorias estilo Discord
+- [x] **Categorias implementadas:**
+  - Biblioteca (pasta de músicas, re-escanear)
+  - Aparência (tema, paleta automática)
+  - Layout (posição dos elementos - em desenvolvimento)
+  - Áudio (equalizador)
+  - Comportamento (close behavior, Discord RPC)
+  - Dados (limpar cache, reset estatísticas)
+  - Sobre (versão, créditos, links)
 
 ### Splash Screen
-- [x] **Logo simplificada** - Removido container, símbolo ₪ direto
-- [x] **Efeito glow** - Animação de text-shadow pulsante
-- [x] **Centralização** - Ajustes de margin para alinhar símbolo rotacionado
+- [x] **Logo centralizada** - Usa imagem do ícone (Icone.png)
+- [x] **Animação de loading** - Barras de áudio animadas
+- [x] **Tempo mínimo** - 1.5s para UX suave
+- [x] **Fallback** - Fecha após 5s se algo travar
+
+---
+
+## Concluído Recentemente
+
+### Sessão 20/12/2024
+- [x] **Discord Rich Presence** - Integração completa com Discord
+- [x] **WebSocket Server** - Para plugin Vencord
+- [x] **Plugin Vencord** - skllPlayer plugin criado
+- [x] **System Tray** - Minimizar para bandeja com menu
+- [x] **Close Behavior Dialog** - Pergunta ao fechar pela primeira vez
+- [x] **Settings Reorganizado** - Menu lateral com categorias
+- [x] **Splash com Logo** - Imagem ao invés de símbolo texto
+- [x] **Backup GitHub** - Código enviado para repositório
+
+### Sessão Anterior
+- [x] **Categorização de temas** - Temas separados em "Oficiais" e "Comunidade"
+- [x] **Efeitos de janela (Windows)** - Suporte a Mica, Acrylic, Tabbed
+- [x] **Tema Glass Acrylic** - Cores semi-transparentes com blur
+- [x] **Tema Glass Mica** - Cores semi-transparentes com blur do wallpaper
+- [x] **Gerador de Paleta Automático** - Gera cores a partir de 1 cor base
+- [x] **Tema Cyberpunk 2077** - Neon vermelho e cyan
 
 ---
 
 ## O Que Falta Fazer
 
 ### Efeitos de Áudio Avançados
-- [ ] Crossfade entre músicas (não funcional)
-- [x] ~~Gapless playback~~
-- [x] ~~Normalização de volume~~
+- [ ] Crossfade entre músicas
+
+### Layout Customizável
+- [ ] Layouts pré-definidos (Padrão, Compacto, Expandido, Minimalista)
+- [ ] Posição do Player (embaixo, em cima, flutuante)
+- [ ] Posição da Sidebar (esquerda, direita, oculta, auto-hide)
+- [ ] Visualização da Biblioteca (grid, lista, colunas)
+- [ ] Sidebar redimensionável
+- [ ] Mini Player (janela flutuante pequena)
+- [ ] "Now Playing" View (tela com artwork grande)
 
 ### Build & Distribuição
 - [ ] Configurar electron-builder
 - [ ] Usar logo como ícone do executável (.ico)
 - [ ] Gerar instalador Windows
+- [ ] Versão portable
 
 ---
 
@@ -188,11 +221,15 @@
 SkllPlayer/
 ├── src/
 │   ├── main/
-│   │   ├── main.ts          # Entrada do Electron
-│   │   ├── preload.ts       # Bridge IPC
-│   │   ├── ipc.ts           # Handlers (músicas, playlists, temas)
-│   │   ├── downloader.ts    # yt-dlp + ffmpeg integration
-│   │   └── splash.ts        # Splash screen com logo
+│   │   ├── main.ts              # Entrada do Electron
+│   │   ├── preload.ts           # Bridge IPC
+│   │   ├── ipc.ts               # Handlers (músicas, playlists, temas)
+│   │   ├── splash.ts            # Splash screen com logo
+│   │   ├── discord-rpc.ts       # Discord Rich Presence
+│   │   ├── websocket-server.ts  # WebSocket para Vencord
+│   │   ├── downloader.ts        # yt-dlp + ffmpeg integration
+│   │   └── types/
+│   │       └── discord-rpc.d.ts # Tipos do discord-rpc
 │   │
 │   └── renderer/
 │       ├── components/
@@ -200,6 +237,7 @@ SkllPlayer/
 │       │   ├── Titlebar.tsx
 │       │   ├── Sidebar.tsx
 │       │   ├── Player.tsx
+│       │   ├── Logo.tsx
 │       │   ├── TrackList.tsx
 │       │   └── TrackContextMenu.tsx
 │       ├── pages/
@@ -212,12 +250,12 @@ SkllPlayer/
 │       │   ├── StatsPage.tsx
 │       │   └── SettingsPage.tsx
 │       ├── stores/
-│       │   ├── playerStore.ts      # Estado do player (Zustand)
-│       │   └── equalizerStore.ts   # Estado do equalizador (Web Audio API)
+│       │   ├── playerStore.ts
+│       │   └── equalizerStore.ts
 │       ├── hooks/
-│       │   └── useTheme.tsx     # Engine de temas
+│       │   └── useTheme.tsx
 │       └── types/
-│           └── electron.d.ts    # Tipos da API Electron
+│           └── electron.d.ts
 │
 ├── themes/
 │   ├── default-dark.theme.json
@@ -228,11 +266,16 @@ SkllPlayer/
 │   ├── glass-mica.theme.json
 │   └── README.md
 │
-├── start.bat              # Inicia o app (tenta ocultar CMD)
-├── start-dev.bat          # Inicia com DevTools e CMD visível
-├── start.ps1              # Script PowerShell alternativo
-├── SkllPlayer.lnk         # Atalho para iniciar minimizado
+├── Public/
+│   ├── Icon/
+│   │   └── Icone.png
+│   └── Screenshot/
+│       ├── Faixas.png
+│       ├── equalizer.png
+│       └── options.png
 │
+├── start.bat              # Inicia o app
+├── start-dev.bat          # Inicia com DevTools
 └── package.json
 ```
 
@@ -240,14 +283,16 @@ SkllPlayer/
 
 ## Como Rodar
 
-### Modo Normal (sem CMD)
-```
-Duplo clique em: SkllPlayer.lnk
+### Modo Normal
+```bash
+# Duplo clique em:
+start.bat
 ```
 
 ### Modo Desenvolvimento (com DevTools)
-```
-Duplo clique em: start-dev.bat
+```bash
+# Duplo clique em:
+start-dev.bat
 ```
 
 ### Via Terminal
@@ -260,28 +305,13 @@ npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 
 ---
 
-## Próximos Passos (Prioridade)
-
-1. **Efeitos de áudio avançados**
-   - Gapless playback
-   - Normalização de volume
-
-2. **Build para distribuição**
-   - Configurar electron-builder
-   - Gerar instalador e versão portable
-
----
-
 ## Problemas Conhecidos
 
 | Problema | Severidade | Status |
 |----------|------------|--------|
-| ~~Splash screen abrindo infinitamente~~ | ~~Média~~ | ✅ Corrigido |
+| CMD aparece ao iniciar (dev mode) | Baixa | Esperado em dev |
+| Discord RPC requer Game Activity | Média | Usar plugin Vencord |
 | Erros de cache do Windows no console | Baixa | Ignorável |
-| ~~Metadados não baixando~~ | ~~Alta~~ | ✅ Corrigido |
-| ~~Tempo de escuta não contabiliza~~ | ~~Alta~~ | ✅ Corrigido |
-| ~~Sliders descentralizados~~ | ~~Média~~ | ✅ Corrigido |
-| ~~FPS baixo na lista de faixas~~ | ~~Alta~~ | ✅ Corrigido |
 
 ---
 
@@ -295,49 +325,19 @@ npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 - **Zustand** 4.x - Estado global
 - **Framer Motion** 11.x - Animações
 - **Howler.js** 2.x - Player de áudio
+- **Web Audio API** - Equalizador
 - **music-metadata** 7.x - Extração de metadados
 - **electron-store** 8.x - Armazenamento local
+- **discord-rpc** - Rich Presence
+- **ws** - WebSocket server
+- **yt-dlp** - Download do YouTube
 - **Lucide React** - Ícones
 - **@tanstack/react-virtual** - Virtualização de listas
 
 ---
 
-## Notas Técnicas Importantes
-
-### Equalizador (equalizerStore.ts)
-- Usa Web Audio API com MediaElementAudioSourceNode
-- **WeakMap** para rastrear elementos de áudio já conectados (evita erro de reconexão)
-- Conectado ao Howler.js via `connectMediaElement()`
-- Cadeia: Input → EQ Bands → Bass Boost → Reverb → Balance → Amplifier → Output
-
-### Downloader (downloader.ts)
-- yt-dlp baixado de: `https://github.com/yt-dlp/yt-dlp/releases/latest/download/`
-- ffmpeg baixado de: `https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/`
-- Binários salvos em: `app.getPath('userData')/bin/` e `/ffmpeg/`
-- Extração do ffmpeg via PowerShell (`Expand-Archive`)
-- Passa `--ffmpeg-location` para o yt-dlp
-
-### CSP (Content Security Policy)
-- Configurada em `src/renderer/index.html`
-- Permite imagens de: `i.ytimg.com`, `*.ytimg.com`, `*.ggpht.com`
-- Permite mídia de: `self`, `file:`, `media://`
-
-### Player (playerStore.ts)
-- Usa Howler.js para reprodução
-- Protocolo customizado `media://` para arquivos locais
-- Conecta ao equalizador quando disponível
-
-### Interface Modular (useTheme.tsx)
-- **Layout overrides**: Usuário pode sobrescrever posições (sidebar, player, titlebar)
-- **Color overrides**: Usuário pode sobrescrever cores do tema
-- Overrides são persistidos separadamente em `settings.layoutOverrides` e `settings.colorOverrides`
-- Temas definem valores padrão, overrides têm prioridade
-- Função `applyThemeToCSS()` mescla tema com overrides
-
----
-
 ## Criador
 
-**SkellBR**
+**SkellBR** ([@NskBR](https://github.com/NskBR))
 
-Inspirado no BlackPlayer para Android.
+*Inspirado no BlackPlayer para Android*
