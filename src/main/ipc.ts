@@ -389,7 +389,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
       ? path.join(process.resourcesPath, 'themes')
       : path.join(__dirname, '../../themes');
 
-    const themes: Array<{ name: string; author: string; type: string; isCustom: boolean }> = [];
+    const themes: Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean }> = [];
 
     if (fs.existsSync(themesPath)) {
       const files = fs.readdirSync(themesPath);
@@ -398,11 +398,14 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
           try {
             const themePath = path.join(themesPath, file);
             const themeData = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+            const isCustom = file.startsWith('custom-');
             themes.push({
               name: themeData.name,
               author: themeData.author,
               type: themeData.type,
-              isCustom: file.startsWith('custom-'),
+              category: themeData.category || (isCustom ? 'community' : 'official'),
+              windowEffect: themeData.windowEffect,
+              isCustom,
             });
           } catch (e) {
             // Skip invalid theme files

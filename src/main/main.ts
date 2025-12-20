@@ -1,11 +1,15 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, protocol } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, protocol, Tray, Menu, dialog, nativeImage } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { setupIpcHandlers } from './ipc';
 import { createSplashWindow } from './splash';
+import { initDiscordRPC, destroyDiscordRPC } from './discord-rpc';
+import { initWebSocketServer, destroyWebSocketServer } from './websocket-server';
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -39,8 +43,8 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minWidth: 900,
     minHeight: 600,
     frame: false, // Remove default frame for custom titlebar
-    transparent: false,
-    backgroundColor: '#0a0a0f',
+    transparent: true, // Enable transparency for acrylic/mica effects
+    backgroundColor: '#00000000', // Fully transparent background
     show: false, // Hidden initially, shown after splash
     webPreferences: {
       nodeIntegration: false,
@@ -50,13 +54,21 @@ async function createMainWindow(): Promise<BrowserWindow> {
     icon: path.join(__dirname, '../../assets/icons/icon.png'),
   });
 
+  // Set default background material (none = opaque)
+  // Will be changed by theme if it specifies a windowEffect
+  if (process.platform === 'win32') {
+    mainWindow.setBackgroundMaterial('none');
+  }
+
   // Load the app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // Open DevTools after window is shown
-    mainWindow.once('show', () => {
-      mainWindow?.webContents.openDevTools();
-    });
+    // Open DevTools only when SKLLPLAYER_DEV env is set (start-dev.bat)
+    if (process.env.SKLLPLAYER_DEV) {
+      mainWindow.once('show', () => {
+        mainWindow?.webContents.openDevTools();
+      });
+    }
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
   }
@@ -106,18 +118,171 @@ function registerGlobalShortcuts(): void {
   });
 }
 
+// Settings file path
+function getSettingsPath(): string {
+  return path.join(app.getPath('userData'), 'settings.json');
+}
+
+// Read close behavior from settings
+function getCloseBehavior(): 'ask' | 'tray' | 'close' {
+  try {
+    const settingsPath = getSettingsPath();
+    if (fs.existsSync(settingsPath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+      return settings.closeBehavior || 'ask';
+    }
+  } catch (error) {
+    console.error('Error reading close behavior:', error);
+  }
+  return 'ask';
+}
+
+// Save close behavior to settings
+function saveCloseBehavior(behavior: 'ask' | 'tray' | 'close'): void {
+  try {
+    const settingsPath = getSettingsPath();
+    let settings: any = {};
+    if (fs.existsSync(settingsPath)) {
+      settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+    }
+    settings.closeBehavior = behavior;
+    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Error saving close behavior:', error);
+  }
+}
+
+// Create system tray
+function createTray(): void {
+  const iconPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+  let trayIcon: Electron.NativeImage;
+
+  try {
+    trayIcon = nativeImage.createFromPath(iconPath);
+    // Resize for tray (16x16 or 32x32 depending on platform)
+    trayIcon = trayIcon.resize({ width: 16, height: 16 });
+  } catch (error) {
+    console.error('Error loading tray icon:', error);
+    return;
+  }
+
+  tray = new Tray(trayIcon);
+  tray.setToolTip('SkllPlayer');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Abrir SkllPlayer',
+      click: () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      }
+    },
+    {
+      label: 'Reproduzir/Pausar',
+      click: () => {
+        mainWindow?.webContents.send('media-key', 'play-pause');
+      }
+    },
+    {
+      label: 'Próxima',
+      click: () => {
+        mainWindow?.webContents.send('media-key', 'next');
+      }
+    },
+    {
+      label: 'Anterior',
+      click: () => {
+        mainWindow?.webContents.send('media-key', 'previous');
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Sair',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
+    }
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  // Double-click to open
+  tray.on('double-click', () => {
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+}
+
+// Handle window close with dialog
+async function handleWindowClose(): Promise<void> {
+  const behavior = getCloseBehavior();
+
+  if (behavior === 'tray') {
+    mainWindow?.hide();
+    return;
+  }
+
+  if (behavior === 'close') {
+    isQuitting = true;
+    app.quit();
+    return;
+  }
+
+  // behavior === 'ask' - show dialog
+  const result = await dialog.showMessageBox(mainWindow!, {
+    type: 'question',
+    buttons: ['Minimizar na bandeja', 'Fechar o aplicativo'],
+    defaultId: 0,
+    cancelId: 1,
+    title: 'Fechar SkllPlayer',
+    message: 'O que deseja fazer?',
+    detail: 'Você pode alterar isso depois em Configurações.',
+    checkboxLabel: 'Lembrar minha escolha',
+    checkboxChecked: false
+  });
+
+  if (result.checkboxChecked) {
+    // Save choice
+    saveCloseBehavior(result.response === 0 ? 'tray' : 'close');
+  }
+
+  if (result.response === 0) {
+    // Minimize to tray
+    mainWindow?.hide();
+  } else {
+    // Close app
+    isQuitting = true;
+    app.quit();
+  }
+}
+
 async function initialize(): Promise<void> {
   // Register custom protocol for audio files
   registerMediaProtocol();
 
-  // Get logo path for splash screen
-  const logoPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+  // Initialize Discord Rich Presence
+  initDiscordRPC();
+
+  // Initialize WebSocket server for Vencord plugin
+  initWebSocketServer();
+
+  // Create system tray
+  createTray();
 
   // Create and show splash screen
-  splashWindow = await createSplashWindow(logoPath);
+  splashWindow = await createSplashWindow();
 
   // Create main window (hidden)
   await createMainWindow();
+
+  // Intercept window close event
+  mainWindow?.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      handleWindowClose();
+    }
+  });
 
   // Setup IPC handlers (after window is created so we can pass it for download progress)
   setupIpcHandlers(mainWindow);
@@ -172,6 +337,26 @@ app.on('window-all-closed', () => {
   }
 });
 
+app.on('before-quit', () => {
+  isQuitting = true;
+});
+
+app.on('quit', () => {
+  // Destroy Discord RPC
+  destroyDiscordRPC();
+
+  // Destroy WebSocket server
+  destroyWebSocketServer();
+
+  // Destroy tray
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+  // Force exit to close CMD/terminal window
+  process.exit(0);
+});
+
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow();
@@ -197,4 +382,29 @@ ipcMain.on('window-close', () => {
 
 ipcMain.handle('window-is-maximized', () => {
   return mainWindow?.isMaximized() ?? false;
+});
+
+// Window effect (mica, acrylic, etc.) - Windows only
+ipcMain.on('set-window-effect', (_event, effect: string) => {
+  if (process.platform === 'win32' && mainWindow) {
+    try {
+      // Valid effects: 'none', 'mica', 'acrylic', 'tabbed', 'auto'
+      const validEffects = ['none', 'mica', 'acrylic', 'tabbed', 'auto'];
+      if (validEffects.includes(effect)) {
+        mainWindow.setBackgroundMaterial(effect as 'none' | 'mica' | 'acrylic' | 'tabbed' | 'auto');
+        console.log(`Window effect set to: ${effect}`);
+      }
+    } catch (error) {
+      console.error('Error setting window effect:', error);
+    }
+  }
+});
+
+// Close behavior settings
+ipcMain.handle('get-close-behavior', () => {
+  return getCloseBehavior();
+});
+
+ipcMain.on('set-close-behavior', (_event, behavior: 'ask' | 'tray' | 'close') => {
+  saveCloseBehavior(behavior);
 });

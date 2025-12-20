@@ -1,16 +1,8 @@
 import { BrowserWindow, app } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-import * as os from 'os';
 
-export async function createSplashWindow(logoPath?: string): Promise<BrowserWindow> {
-  // Convert logo to base64 if it exists
-  let logoDataUrl = '';
-  if (logoPath && fs.existsSync(logoPath)) {
-    const logoBuffer = fs.readFileSync(logoPath);
-    logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
-  }
-
+export async function createSplashWindow(): Promise<BrowserWindow> {
   const splash = new BrowserWindow({
     width: 400,
     height: 300,
@@ -26,6 +18,16 @@ export async function createSplashWindow(logoPath?: string): Promise<BrowserWind
   });
 
   splash.center();
+
+  // Load icon as base64
+  const iconPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+  let iconBase64 = '';
+  try {
+    const iconBuffer = fs.readFileSync(iconPath);
+    iconBase64 = `data:image/png;base64,${iconBuffer.toString('base64')}`;
+  } catch (error) {
+    console.error('Failed to load splash icon:', error);
+  }
 
   // Load splash HTML
   const splashHTML = `
@@ -52,7 +54,7 @@ export async function createSplashWindow(logoPath?: string): Promise<BrowserWind
         .splash-container {
           background: linear-gradient(135deg, #0a0a0f 0%, #1a1a2e 100%);
           border-radius: 20px;
-          padding: 50px;
+          padding: 40px 50px;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -62,86 +64,27 @@ export async function createSplashWindow(logoPath?: string): Promise<BrowserWind
         }
 
         @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.9);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-
-        .logo-container {
-          position: relative;
-          width: 100px;
-          height: 100px;
-          margin-bottom: 30px;
+          from { opacity: 0; transform: scale(0.9); }
+          to { opacity: 1; transform: scale(1); }
         }
 
         .logo {
-          width: 100%;
-          height: 100%;
-          border-radius: 24px;
-          object-fit: contain;
+          width: 100px;
+          height: 100px;
+          margin-bottom: 20px;
           animation: pulse 2s ease-in-out infinite;
+          filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5));
         }
 
-        .logo-fallback {
+        .logo img {
           width: 100%;
           height: 100%;
-          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-          border-radius: 24px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 48px;
-          font-weight: 800;
-          color: white;
-          text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-          animation: pulse 2s ease-in-out infinite;
+          object-fit: contain;
         }
 
         @keyframes pulse {
-          0%, 100% {
-            box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
-          }
-          50% {
-            box-shadow: 0 0 0 20px rgba(139, 92, 246, 0);
-          }
-        }
-
-        .equalizer {
-          position: absolute;
-          bottom: -15px;
-          left: 50%;
-          transform: translateX(-50%);
-          display: flex;
-          gap: 4px;
-          align-items: flex-end;
-          height: 30px;
-        }
-
-        .bar {
-          width: 6px;
-          background: linear-gradient(180deg, #a855f7 0%, #6366f1 100%);
-          border-radius: 3px;
-          animation: equalizer 0.8s ease-in-out infinite;
-        }
-
-        .bar:nth-child(1) { animation-delay: 0s; }
-        .bar:nth-child(2) { animation-delay: 0.1s; }
-        .bar:nth-child(3) { animation-delay: 0.2s; }
-        .bar:nth-child(4) { animation-delay: 0.3s; }
-        .bar:nth-child(5) { animation-delay: 0.4s; }
-
-        @keyframes equalizer {
-          0%, 100% {
-            height: 8px;
-          }
-          50% {
-            height: 25px;
-          }
+          0%, 100% { filter: drop-shadow(0 0 20px rgba(139, 92, 246, 0.5)); }
+          50% { filter: drop-shadow(0 0 40px rgba(139, 92, 246, 0.8)); }
         }
 
         .title {
@@ -149,79 +92,56 @@ export async function createSplashWindow(logoPath?: string): Promise<BrowserWind
           font-weight: 700;
           color: white;
           letter-spacing: 2px;
-          margin-bottom: 10px;
-          animation: slideUp 0.6s ease-out 0.3s backwards;
-        }
-
-        @keyframes slideUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          margin-bottom: 8px;
         }
 
         .version {
           font-size: 12px;
           color: rgba(255, 255, 255, 0.5);
-          animation: slideUp 0.6s ease-out 0.5s backwards;
+          margin-bottom: 20px;
         }
 
-        .loading {
-          margin-top: 25px;
+        .sound-bars {
           display: flex;
-          gap: 6px;
-          animation: slideUp 0.6s ease-out 0.7s backwards;
+          align-items: flex-end;
+          justify-content: center;
+          gap: 4px;
+          height: 24px;
         }
 
-        .loading-dot {
-          width: 8px;
-          height: 8px;
+        .sound-bar {
+          width: 4px;
           background: #8b5cf6;
-          border-radius: 50%;
-          animation: loadingDot 1.4s ease-in-out infinite;
+          border-radius: 2px;
+          animation: soundBar 0.8s ease-in-out infinite;
+          transform-origin: bottom;
         }
 
-        .loading-dot:nth-child(1) { animation-delay: 0s; }
-        .loading-dot:nth-child(2) { animation-delay: 0.2s; }
-        .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+        .sound-bar:nth-child(1) { height: 12px; animation-delay: 0s; }
+        .sound-bar:nth-child(2) { height: 20px; animation-delay: 0.2s; }
+        .sound-bar:nth-child(3) { height: 16px; animation-delay: 0.4s; }
+        .sound-bar:nth-child(4) { height: 24px; animation-delay: 0.1s; }
+        .sound-bar:nth-child(5) { height: 14px; animation-delay: 0.3s; }
 
-        @keyframes loadingDot {
-          0%, 80%, 100% {
-            transform: scale(0.6);
-            opacity: 0.5;
-          }
-          40% {
-            transform: scale(1);
-            opacity: 1;
-          }
+        @keyframes soundBar {
+          0%, 100% { transform: scaleY(0.5); }
+          50% { transform: scaleY(1); }
         }
       </style>
     </head>
     <body>
       <div class="splash-container">
-        <div class="logo-container">
-          ${logoDataUrl
-            ? `<img class="logo" src="${logoDataUrl}" alt="SkllPlayer" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />`
-            : ''}
-          <div class="logo-fallback" style="display:${logoDataUrl ? 'none' : 'flex'};">S</div>
-          <div class="equalizer">
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-            <div class="bar"></div>
-          </div>
+        <div class="logo">
+          <img src="${iconBase64}" alt="SkllPlayer" />
         </div>
         <div class="title">SkllPlayer</div>
         <div class="version">v0.1 Build Test</div>
-        <div class="loading">
-          <div class="loading-dot"></div>
-          <div class="loading-dot"></div>
-          <div class="loading-dot"></div>
+        <div class="sound-bars">
+          <div class="sound-bar"></div>
+          <div class="sound-bar"></div>
+          <div class="sound-bar"></div>
+          <div class="sound-bar"></div>
+          <div class="sound-bar"></div>
         </div>
       </div>
     </body>

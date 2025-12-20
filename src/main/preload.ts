@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   maximizeWindow: () => ipcRenderer.send('window-maximize'),
   closeWindow: () => ipcRenderer.send('window-close'),
   isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  setWindowEffect: (effect: string) => ipcRenderer.send('set-window-effect', effect),
 
   // Media keys listener
   onMediaKey: (callback: (key: string) => void) => {
@@ -89,6 +90,32 @@ contextBridge.exposeInMainWorld('electronAPI', {
     filePath: string;
   }) => ipcRenderer.invoke('add-to-download-history', item),
   clearDownloadHistory: () => ipcRenderer.invoke('clear-download-history'),
+
+  // Close behavior
+  getCloseBehavior: () => ipcRenderer.invoke('get-close-behavior'),
+  setCloseBehavior: (behavior: 'ask' | 'tray' | 'close') => ipcRenderer.send('set-close-behavior', behavior),
+
+  // Discord Rich Presence
+  updateDiscordPresence: (track: {
+    title: string;
+    artist: string;
+    thumbnail: string | null;
+    duration: number;
+    currentTime: number;
+    isPlaying: boolean;
+  } | null) => ipcRenderer.send('discord-rpc-update', track),
+  clearDiscordPresence: () => ipcRenderer.send('discord-rpc-clear'),
+
+  // WebSocket for Vencord plugin
+  updateWebSocketTrack: (track: {
+    title: string;
+    artist: string;
+    album?: string;
+    thumbnail: string | null;
+    duration: number;
+    currentTime: number;
+    isPlaying: boolean;
+  } | null) => ipcRenderer.send('ws-track-update', track),
 });
 
 // Type definitions for the exposed API
@@ -137,6 +164,8 @@ export interface ElectronAPI {
   getDownloadHistory: () => Promise<DownloadHistoryItem[]>;
   addToDownloadHistory: (item: DownloadHistoryItem) => Promise<DownloadHistoryItem[]>;
   clearDownloadHistory: () => Promise<DownloadHistoryItem[]>;
+  getCloseBehavior: () => Promise<'ask' | 'tray' | 'close'>;
+  setCloseBehavior: (behavior: 'ask' | 'tray' | 'close') => void;
 }
 
 interface YtDlpStatus {

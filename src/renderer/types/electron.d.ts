@@ -31,20 +31,33 @@ export interface ThemeInfo {
   name: string;
   author: string;
   type: 'dark' | 'light';
+  category: 'official' | 'community';
+  windowEffect?: WindowEffect;
   isCustom: boolean;
 }
+
+export interface ThemeGradient {
+  enabled: boolean;
+  type: 'linear' | 'radial';
+  angle: number;
+  colors: string[];
+  stops: number[];
+}
+
+export type WindowEffect = 'none' | 'mica' | 'acrylic' | 'tabbed';
 
 export interface Theme {
   name: string;
   author: string;
   version: string;
   type: 'dark' | 'light';
+  windowEffect?: WindowEffect;
   colors: {
-    background: { primary: string; secondary: string; tertiary: string };
+    background: { primary: string; secondary: string; tertiary: string; gradient?: ThemeGradient };
     text: { primary: string; secondary: string; muted: string };
     accent: { primary: string; hover: string; active: string };
     player: { progress: string; progressBackground: string; controls: string };
-    sidebar: { background: string; itemHover: string; itemActive: string };
+    sidebar: { background: string; itemHover: string; itemActive: string; gradient?: ThemeGradient };
   };
   fonts: {
     primary: string;
@@ -76,6 +89,60 @@ export interface Theme {
   };
 }
 
+export interface LayoutOverrides {
+  sidebar?: {
+    position?: 'left' | 'right' | 'top';
+    width?: string;
+    collapsedWidth?: string;
+  };
+  player?: {
+    position?: 'bottom' | 'top';
+    height?: string;
+  };
+  header?: {
+    visible?: boolean;
+    height?: string;
+  };
+}
+
+export interface GradientConfig {
+  enabled?: boolean;
+  type?: 'linear' | 'radial';
+  angle?: number; // for linear gradients (0-360)
+  colors?: string[]; // array of colors
+  stops?: number[]; // array of stop positions (0-100)
+}
+
+export interface ColorOverrides {
+  background?: {
+    primary?: string;
+    secondary?: string;
+    tertiary?: string;
+    gradient?: GradientConfig;
+  };
+  text?: {
+    primary?: string;
+    secondary?: string;
+    muted?: string;
+  };
+  accent?: {
+    primary?: string;
+    hover?: string;
+    active?: string;
+  };
+  player?: {
+    progress?: string;
+    progressBackground?: string;
+    controls?: string;
+  };
+  sidebar?: {
+    background?: string;
+    itemHover?: string;
+    itemActive?: string;
+    gradient?: GradientConfig;
+  };
+}
+
 export interface Settings {
   musicFolder: string;
   theme: string;
@@ -83,6 +150,8 @@ export interface Settings {
   crossfadeEnabled: boolean;
   crossfadeDuration: number;
   normalizationEnabled: boolean;
+  layoutOverrides?: LayoutOverrides;
+  colorOverrides?: ColorOverrides;
   equalizer: {
     '60': number;
     '230': number;
@@ -117,6 +186,7 @@ export interface ElectronAPI {
   maximizeWindow: () => void;
   closeWindow: () => void;
   isMaximized: () => Promise<boolean>;
+  setWindowEffect: (effect: WindowEffect) => void;
 
   // Media keys
   onMediaKey: (callback: (key: string) => void) => void;
@@ -194,6 +264,21 @@ export interface ElectronAPI {
   cancelDownload: (id: string) => Promise<void>;
   getYtDlpStatus: () => Promise<YtDlpStatus>;
   installYtDlp: () => Promise<boolean>;
+
+  // Close behavior
+  getCloseBehavior: () => Promise<'ask' | 'tray' | 'close'>;
+  setCloseBehavior: (behavior: 'ask' | 'tray' | 'close') => void;
+
+  // Discord Rich Presence
+  updateDiscordPresence: (track: {
+    title: string;
+    artist: string;
+    thumbnail: string | null;
+    duration: number;
+    currentTime: number;
+    isPlaying: boolean;
+  } | null) => void;
+  clearDiscordPresence: () => void;
 }
 
 export interface YtDlpStatus {

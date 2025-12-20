@@ -1,4 +1,4 @@
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import Titlebar from './Titlebar';
 import Sidebar from './Sidebar';
@@ -39,19 +39,40 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
 
   const sidebarPosition = layout?.sidebar.position || 'left';
   const playerPosition = layout?.player.position || 'bottom';
+  const headerVisible = layout?.header.visible ?? true;
+
+  // Check if gradient is enabled via CSS variable
+  const bgStyle = useMemo(() => {
+    // We'll use the CSS variable directly
+    return {
+      background: 'var(--bg-gradient, var(--color-bg-primary))',
+      backgroundColor: 'var(--color-bg-primary)',
+    };
+  }, []);
 
   return (
-    <div className="flex flex-col h-screen bg-bg-primary overflow-hidden">
+    <div
+      className="flex flex-col h-screen overflow-hidden"
+      style={bgStyle}
+    >
       {/* First Use Wizard */}
       {showWizard && <FirstUseWizard onComplete={handleWizardComplete} />}
 
       {/* Custom Titlebar */}
-      <Titlebar />
+      {headerVisible && <Titlebar />}
+
+      {/* Drag region when titlebar is hidden */}
+      {!headerVisible && (
+        <div
+          className="h-6 w-full bg-transparent absolute top-0 left-0 right-0 z-50"
+          style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+        />
+      )}
 
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar - Left position */}
-        {sidebarPosition === 'left' && <Sidebar />}
+        {sidebarPosition === 'left' && <Sidebar position="left" />}
 
         {/* Content wrapper */}
         <div className="flex flex-col flex-1 overflow-hidden">
@@ -71,7 +92,7 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
         </div>
 
         {/* Sidebar - Right position */}
-        {sidebarPosition === 'right' && <Sidebar />}
+        {sidebarPosition === 'right' && <Sidebar position="right" />}
       </div>
     </div>
   );

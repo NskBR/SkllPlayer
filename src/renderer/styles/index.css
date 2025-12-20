@@ -52,6 +52,12 @@
   --scrollbar-width: 8px;
   --scrollbar-thumb: #3a3a45;
   --scrollbar-track: transparent;
+
+  /* Gradients */
+  --bg-gradient: none;
+  --bg-gradient-enabled: 0;
+  --sidebar-gradient: none;
+  --sidebar-gradient-enabled: 0;
 }
 
 /* Base styles */
