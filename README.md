@@ -9,7 +9,18 @@ Um player de música desktop moderno e elegante, inspirado no BlackPlayer para A
 
 ## Screenshots
 
-*Em breve*
+<div align="center">
+
+### Biblioteca de Faixas
+![Faixas](Public/Screenshot/Faixas.png)
+
+### Equalizador
+![Equalizador](Public/Screenshot/equalizer.png)
+
+### Menu de Contexto
+![Options](Public/Screenshot/options.png)
+
+</div>
 
 ## Funcionalidades
 
@@ -51,13 +62,25 @@ Um player de música desktop moderno e elegante, inspirado no BlackPlayer para A
 - Instalação automática do yt-dlp e ffmpeg
 - Adição automática à biblioteca
 
+### Discord Rich Presence
+- Mostra o que você está ouvindo no Discord
+- WebSocket server para integração com Vencord
+- Mostra título, artista e progresso da música
+
+### System Tray
+- Minimizar para bandeja do sistema
+- Menu de contexto com controles rápidos
+- Opção de fechar ou minimizar ao clicar no X
+
 ### Interface
 - Tema escuro e claro
 - Sistema de temas customizáveis (JSON)
+- Temas com efeitos de transparência (Mica, Acrylic)
 - Sidebar recolhível
 - Titlebar customizada
 - Animações suaves com Framer Motion
 - Atalhos de teclado (Media Keys)
+- Configurações organizadas em categorias
 
 ## Instalação
 
@@ -79,8 +102,8 @@ npm install
 npm run dev:renderer   # Terminal 1 - Inicia Vite
 npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 
-# Ou em um comando
-npm run electron:dev
+# Ou use o script
+start-dev.bat
 ```
 
 ### Build de Produção
@@ -104,6 +127,19 @@ npm run package  # Gera o executável
 - **music-metadata** 7.x - Extração de metadados
 - **electron-store** 8.x - Armazenamento local
 - **yt-dlp** - Download do YouTube
+- **discord-rpc** - Rich Presence
+- **ws** - WebSocket server
+
+## Temas Disponíveis
+
+| Tema | Tipo | Descrição |
+|------|------|-----------|
+| Default Dark | Oficial | Tema escuro padrão |
+| Default Light | Oficial | Tema claro |
+| Midnight Purple | Oficial | Tons de roxo |
+| Cyberpunk 2077 | Oficial | Neon vermelho e cyan |
+| Glass Acrylic | Oficial | Transparência com blur |
+| Glass Mica | Oficial | Transparência Windows 11 |
 
 ## Estrutura do Projeto
 
@@ -111,20 +147,26 @@ npm run package  # Gera o executável
 SkllPlayer/
 ├── src/
 │   ├── main/
-│   │   ├── main.ts          # Entrada do Electron
-│   │   ├── preload.ts       # Bridge IPC
-│   │   ├── ipc.ts           # Handlers IPC
-│   │   └── downloader.ts    # yt-dlp integration
+│   │   ├── main.ts            # Entrada do Electron
+│   │   ├── preload.ts         # Bridge IPC
+│   │   ├── ipc.ts             # Handlers IPC
+│   │   ├── splash.ts          # Splash screen
+│   │   ├── discord-rpc.ts     # Discord Rich Presence
+│   │   ├── websocket-server.ts # WebSocket para Vencord
+│   │   └── downloader.ts      # yt-dlp integration
 │   │
 │   └── renderer/
-│       ├── components/      # Componentes React
-│       ├── pages/           # Páginas da aplicação
-│       ├── stores/          # Estado (Zustand)
-│       ├── hooks/           # Custom hooks
-│       └── types/           # TypeScript types
+│       ├── components/        # Componentes React
+│       ├── pages/             # Páginas da aplicação
+│       ├── stores/            # Estado (Zustand)
+│       ├── hooks/             # Custom hooks
+│       └── types/             # TypeScript types
 │
-├── themes/                  # Temas customizáveis
-└── assets/                  # Ícones e recursos
+├── themes/                    # Temas customizáveis
+├── Public/
+│   ├── Icon/                  # Ícone do app
+│   └── Screenshot/            # Screenshots
+└── assets/                    # Outros recursos
 ```
 
 ## Atalhos de Teclado
