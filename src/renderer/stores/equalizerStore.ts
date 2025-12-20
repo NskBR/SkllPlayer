@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+// Debounce helper for auto-save
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+function debouncedSave(fn: () => void, delay = 500) {
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(fn, delay);
+}
+
 export interface EqualizerSettings {
   '60': number;
   '230': number;
@@ -30,6 +37,7 @@ const defaultEqualizer: EqualizerSettings = {
 
 interface EqualizerState {
   settings: EqualizerSettings;
+  normalizationEnabled: boolean;
   audioContext: AudioContext | null;
   filters: {
     band60: BiquadFilterNode | null;
@@ -41,6 +49,9 @@ interface EqualizerState {
     balance: StereoPannerNode | null;
     amplifier: GainNode | null;
   };
+  compressor: DynamicsCompressorNode | null;
+  compressorBypass: GainNode | null;
+  compressorOutput: GainNode | null;
   inputNode: GainNode | null;
   outputNode: GainNode | null;
   convolverNode: ConvolverNode | null;
@@ -59,6 +70,7 @@ interface EqualizerState {
   resetSettings: () => void;
   loadSettings: () => Promise<void>;
   saveSettings: () => Promise<void>;
+  setNormalization: (enabled: boolean) => void;
 }
 
 // Create impulse response for reverb
@@ -84,6 +96,7 @@ const connectedElements = new WeakMap<HTMLMediaElement, MediaElementAudioSourceN
 
 export const useEqualizerStore = create<EqualizerState>((set, get) => ({
   settings: { ...defaultEqualizer },
+  normalizationEnabled: false,
   audioContext: null,
   filters: {
     band60: null,
@@ -95,6 +108,9 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
     balance: null,
     amplifier: null,
   },
+  compressor: null,
+  compressorBypass: null,
+  compressorOutput: null,
   inputNode: null,
   outputNode: null,
   convolverNode: null,
@@ -170,6 +186,26 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
       const dryGain = audioContext.createGain();
       dryGain.gain.value = 1;
 
+      // Compressor for volume normalization
+      const compressor = audioContext.createDynamicsCompressor();
+      compressor.threshold.value = -24; // Start compressing at -24dB
+      compressor.knee.value = 12; // Soft knee for smooth compression
+      compressor.ratio.value = 4; // 4:1 compression ratio
+      compressor.attack.value = 0.003; // 3ms attack
+      compressor.release.value = 0.25; // 250ms release
+
+      // Makeup gain after compression
+      const compressorOutput = audioContext.createGain();
+      compressorOutput.gain.value = 0; // Start with compressor off
+
+      // Bypass gain (for when normalization is off - this is the direct path)
+      const compressorBypass = audioContext.createGain();
+      compressorBypass.gain.value = 1; // Bypass is ON by default
+
+      // Mix node to split signal to both paths
+      const mixNode = audioContext.createGain();
+      mixNode.gain.value = 1;
+
       // Connect the audio chain
       // Input -> EQ bands -> Bass boost -> Balance -> Amplifier -> Dry/Wet mix -> Output
       inputNode.connect(band60);
@@ -183,12 +219,22 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
 
       // Dry path (direct)
       amplifier.connect(dryGain);
-      dryGain.connect(outputNode);
+      dryGain.connect(mixNode);
 
       // Wet path (reverb)
       amplifier.connect(convolverNode);
       convolverNode.connect(reverbGain);
-      reverbGain.connect(outputNode);
+      reverbGain.connect(mixNode);
+
+      // Split: mixNode feeds both bypass and compressor paths
+      // Bypass path (default - no compression)
+      mixNode.connect(compressorBypass);
+      compressorBypass.connect(outputNode);
+
+      // Compressor path
+      mixNode.connect(compressor);
+      compressor.connect(compressorOutput);
+      compressorOutput.connect(outputNode);
 
       // Connect output to destination
       outputNode.connect(audioContext.destination);
@@ -205,6 +251,9 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
           balance,
           amplifier,
         },
+        compressor,
+        compressorBypass,
+        compressorOutput,
         inputNode,
         outputNode,
         convolverNode,
@@ -337,15 +386,58 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
           break;
       }
     }
+
+    // Auto-save with debounce
+    debouncedSave(() => get().saveSettings());
   },
 
   setSettings: (newSettings: Partial<EqualizerSettings>) => {
-    const { updateSetting } = get();
+    const { filters, reverbGain, dryGain, settings } = get();
 
-    // Update each setting
+    // Update settings in state
+    const updatedSettings = { ...settings, ...newSettings };
+    set({ settings: updatedSettings });
+
+    // Apply each setting to audio nodes
     Object.entries(newSettings).forEach(([key, value]) => {
-      updateSetting(key as keyof EqualizerSettings, value);
+      if (typeof value === 'number') {
+        switch (key) {
+          case '60':
+            if (filters.band60) filters.band60.gain.value = value;
+            break;
+          case '230':
+            if (filters.band230) filters.band230.gain.value = value;
+            break;
+          case '910':
+            if (filters.band910) filters.band910.gain.value = value;
+            break;
+          case '3600':
+            if (filters.band3600) filters.band3600.gain.value = value;
+            break;
+          case '14000':
+            if (filters.band14000) filters.band14000.gain.value = value;
+            break;
+          case 'bassBoost':
+            if (filters.bassBoost) filters.bassBoost.gain.value = value;
+            break;
+          case 'balance':
+            if (filters.balance) filters.balance.pan.value = value / 10;
+            break;
+          case 'amplifier':
+            if (filters.amplifier) filters.amplifier.gain.value = 1 + (value / 10);
+            break;
+          case 'reverb':
+            if (reverbGain && dryGain) {
+              reverbGain.gain.value = value / 10;
+              dryGain.gain.value = 1 - (value / 20);
+            }
+            break;
+        }
+      }
     });
+
+    // Auto-save with debounce
+    debouncedSave(() => get().saveSettings());
   },
 
   resetSettings: () => {
@@ -358,8 +450,13 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
       if (window.electronAPI) {
         const appSettings = await window.electronAPI.getSettings();
         if (appSettings.equalizer) {
-          const { setSettings } = get();
+          const { setSettings, setNormalization } = get();
           setSettings(appSettings.equalizer);
+        }
+        // Load normalization setting
+        if (appSettings.normalizationEnabled !== undefined) {
+          const { setNormalization } = get();
+          setNormalization(appSettings.normalizationEnabled);
         }
       }
     } catch (error) {
@@ -379,6 +476,37 @@ export const useEqualizerStore = create<EqualizerState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error saving equalizer settings:', error);
+    }
+  },
+
+  setNormalization: (enabled: boolean) => {
+    const { compressorBypass, compressorOutput, audioContext } = get();
+
+    set({ normalizationEnabled: enabled });
+
+    if (compressorBypass && compressorOutput && audioContext) {
+      const now = audioContext.currentTime;
+      if (enabled) {
+        // Enable compressor: fade out bypass, fade in compressor output
+        compressorBypass.gain.setTargetAtTime(0, now, 0.1);
+        compressorOutput.gain.setTargetAtTime(1.4, now, 0.1); // Makeup gain
+        console.log('Volume normalization enabled');
+      } else {
+        // Disable compressor: fade in bypass, fade out compressor output
+        compressorBypass.gain.setTargetAtTime(1, now, 0.1);
+        compressorOutput.gain.setTargetAtTime(0, now, 0.1);
+        console.log('Volume normalization disabled');
+      }
+    }
+
+    // Save to settings
+    if (window.electronAPI) {
+      window.electronAPI.getSettings().then((appSettings) => {
+        window.electronAPI.saveSettings({
+          ...appSettings,
+          normalizationEnabled: enabled,
+        });
+      });
     }
   },
 }));

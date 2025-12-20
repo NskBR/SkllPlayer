@@ -1,8 +1,9 @@
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import Titlebar from './Titlebar';
 import Sidebar from './Sidebar';
 import Player from './Player';
+import FirstUseWizard from './FirstUseWizard';
 
 interface LayoutProps {
   children: ReactNode;
@@ -10,12 +11,40 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps): JSX.Element {
   const { layout } = useTheme();
+  const [showWizard, setShowWizard] = useState(false);
+  const [isCheckingFirstUse, setIsCheckingFirstUse] = useState(true);
+
+  useEffect(() => {
+    checkFirstUse();
+  }, []);
+
+  const checkFirstUse = async () => {
+    try {
+      if (window.electronAPI) {
+        const settings = await window.electronAPI.getSettings();
+        // Show wizard if no music folder is set
+        if (!settings.musicFolder) {
+          setShowWizard(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking first use:', error);
+    }
+    setIsCheckingFirstUse(false);
+  };
+
+  const handleWizardComplete = () => {
+    setShowWizard(false);
+  };
 
   const sidebarPosition = layout?.sidebar.position || 'left';
   const playerPosition = layout?.player.position || 'bottom';
 
   return (
     <div className="flex flex-col h-screen bg-bg-primary overflow-hidden">
+      {/* First Use Wizard */}
+      {showWizard && <FirstUseWizard onComplete={handleWizardComplete} />}
+
       {/* Custom Titlebar */}
       <Titlebar />
 

@@ -80,6 +80,9 @@ export interface Settings {
   musicFolder: string;
   theme: string;
   volume: number;
+  crossfadeEnabled: boolean;
+  crossfadeDuration: number;
+  normalizationEnabled: boolean;
   equalizer: {
     '60': number;
     '230': number;
@@ -186,7 +189,7 @@ export interface ElectronAPI {
 
   // Downloader
   searchYouTube: (query: string) => Promise<YouTubeResult[]>;
-  downloadTrack: (url: string, format: string) => Promise<string>;
+  downloadTrack: (url: string, format: string, metadata?: { title: string; artist: string; thumbnail: string }) => Promise<string>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
   cancelDownload: (id: string) => Promise<void>;
   getYtDlpStatus: () => Promise<YtDlpStatus>;

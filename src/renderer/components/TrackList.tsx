@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, memo, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { Play, MoreHorizontal, Music, Clock, Heart } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { usePlayerStore, Track } from '../stores/playerStore';
 import {
   TrackContextMenu,
@@ -20,7 +20,7 @@ interface TrackListProps {
   onSelect?: (id: number) => void;
   onRemoveFromPlaylist?: (trackId: number) => void;
   showRemoveFromPlaylist?: boolean;
-  onTrackUpdate?: () => void;
+  onTrackUpdate?: (trackId: number, updates: Partial<Track>) => void;
 }
 
 function formatDuration(seconds: number): string {
@@ -28,6 +28,8 @@ function formatDuration(seconds: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
+
+const ITEM_HEIGHT = 56; // Height of each track item in pixels
 
 export default function TrackList({
   tracks,
@@ -42,7 +44,10 @@ export default function TrackList({
   showRemoveFromPlaylist = false,
   onTrackUpdate,
 }: TrackListProps): JSX.Element {
-  const { currentTrack, isPlaying } = usePlayerStore();
+  // Only subscribe to the specific values we need to minimize re-renders
+  const currentTrackId = usePlayerStore((state) => state.currentTrack?.id);
+  const isPlaying = usePlayerStore((state) => state.isPlaying);
+  const parentRef = useRef<HTMLDivElement>(null);
 
   // Context menu state
   const [contextMenuTrack, setContextMenuTrack] = useState<Track | null>(null);
@@ -69,17 +74,32 @@ export default function TrackList({
 
   const handleToggleFavorite = useCallback(async () => {
     if (contextMenuTrack && window.electronAPI) {
-      await window.electronAPI.toggleFavorite(contextMenuTrack.id);
-      onTrackUpdate?.();
+      const newFavoriteState = await window.electronAPI.toggleFavorite(contextMenuTrack.id);
+      onTrackUpdate?.(contextMenuTrack.id, { isFavorite: newFavoriteState });
     }
   }, [contextMenuTrack, onTrackUpdate]);
 
   const handleRenameSubmit = useCallback(async (newTitle: string) => {
     if (renameTrack && window.electronAPI) {
       await window.electronAPI.renameTrack(renameTrack.id, newTitle);
-      onTrackUpdate?.();
+      onTrackUpdate?.(renameTrack.id, { title: newTitle });
     }
   }, [renameTrack, onTrackUpdate]);
+
+  const handleTrackToggleFavorite = useCallback(async (trackId: number) => {
+    if (window.electronAPI) {
+      const newState = await window.electronAPI.toggleFavorite(trackId);
+      onTrackUpdate?.(trackId, { isFavorite: newState });
+    }
+  }, [onTrackUpdate]);
+
+  // Virtualizer for list view - reduced overscan for better performance
+  const rowVirtualizer = useVirtualizer({
+    count: tracks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => ITEM_HEIGHT,
+    overscan: 5,
+  });
 
   if (viewMode === 'grid') {
     return (
@@ -89,8 +109,8 @@ export default function TrackList({
             <TrackGridItem
               key={track.id}
               track={track}
-              isActive={currentTrack?.id === track.id}
-              isPlaying={currentTrack?.id === track.id && isPlaying}
+              isActive={currentTrackId === track.id}
+              isPlaying={currentTrackId === track.id && isPlaying}
               onClick={() => onPlay(track, index)}
               onContextMenu={(e) => handleContextMenu(e, track, index)}
             />
@@ -121,9 +141,9 @@ export default function TrackList({
 
   return (
     <>
-      <div className="space-y-1">
+      <div className="flex flex-col h-full">
         {/* Header */}
-        <div className="flex items-center gap-4 px-4 py-2 text-xs text-text-muted uppercase tracking-wider border-b border-bg-tertiary">
+        <div className="flex items-center gap-4 px-4 py-2 text-xs text-text-muted uppercase tracking-wider border-b border-bg-tertiary flex-shrink-0">
           {showIndex && <span className="w-8 text-center">#</span>}
           {selectable && <span className="w-6" />}
           <span className="w-4" /> {/* Favorite icon space */}
@@ -136,29 +156,52 @@ export default function TrackList({
           <span className="w-10" />
         </div>
 
-        {/* Track items */}
-        {tracks.map((track, index) => (
-          <TrackListItem
-            key={track.id}
-            track={track}
-            index={index}
-            isActive={currentTrack?.id === track.id}
-            isPlaying={currentTrack?.id === track.id && isPlaying}
-            showIndex={showIndex}
-            showPlayCount={showPlayCount}
-            selectable={selectable}
-            isSelected={selectedIds.includes(track.id)}
-            onSelect={() => onSelect?.(track.id)}
-            onClick={() => onPlay(track, index)}
-            onContextMenu={(e) => handleContextMenu(e, track, index)}
-            onToggleFavorite={async () => {
-              if (window.electronAPI) {
-                await window.electronAPI.toggleFavorite(track.id);
-                onTrackUpdate?.();
-              }
+        {/* Virtualized track list */}
+        <div
+          ref={parentRef}
+          className="flex-1 overflow-auto"
+        >
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
             }}
-          />
-        ))}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const track = tracks[virtualRow.index];
+              const index = virtualRow.index;
+              return (
+                <div
+                  key={track.id}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                >
+                  <TrackListItem
+                    track={track}
+                    index={index}
+                    isActive={currentTrackId === track.id}
+                    isPlaying={currentTrackId === track.id && isPlaying}
+                    showIndex={showIndex}
+                    showPlayCount={showPlayCount}
+                    selectable={selectable}
+                    isSelected={selectedIds.includes(track.id)}
+                    onSelect={onSelect}
+                    onClick={onPlay}
+                    onContextMenu={handleContextMenu}
+                    onToggleFavorite={handleTrackToggleFavorite}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Context Menu */}
@@ -192,13 +235,13 @@ interface TrackListItemProps {
   showPlayCount: boolean;
   selectable: boolean;
   isSelected: boolean;
-  onSelect: () => void;
-  onClick: () => void;
-  onContextMenu: (e: React.MouseEvent) => void;
-  onToggleFavorite: () => void;
+  onSelect?: (id: number) => void;
+  onClick: (track: Track, index: number) => void;
+  onContextMenu: (e: React.MouseEvent, track: Track, index: number) => void;
+  onToggleFavorite: (trackId: number) => void;
 }
 
-function TrackListItem({
+const TrackListItem = memo(function TrackListItem({
   track,
   index,
   isActive,
@@ -212,28 +255,48 @@ function TrackListItem({
   onContextMenu,
   onToggleFavorite,
 }: TrackListItemProps): JSX.Element {
+  const handleClick = useCallback(() => {
+    if (selectable) {
+      onSelect?.(track.id);
+    } else {
+      onClick(track, index);
+    }
+  }, [selectable, onSelect, onClick, track, index]);
+
+  const handleDoubleClick = useCallback(() => {
+    if (selectable) {
+      onClick(track, index);
+    }
+  }, [selectable, onClick, track, index]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    onContextMenu(e, track, index);
+  }, [onContextMenu, track, index]);
+
+  const handleToggleFavorite = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onToggleFavorite(track.id);
+  }, [onToggleFavorite, track.id]);
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.02 }}
-      className={`track-item flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer group ${
+    <div
+      className={`track-item flex items-center gap-4 px-4 py-2 rounded-lg cursor-pointer group h-full ${
         isActive
           ? 'bg-accent-primary/20 border border-accent-primary/30'
           : 'hover:bg-bg-tertiary'
       }`}
-      onClick={selectable ? onSelect : onClick}
-      onDoubleClick={selectable ? onClick : undefined}
-      onContextMenu={onContextMenu}
+      onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
+      onContextMenu={handleContextMenu}
     >
       {/* Index or play indicator */}
       {showIndex && (
         <div className="w-8 text-center">
           {isActive && isPlaying ? (
             <div className="flex items-center justify-center gap-0.5">
-              <span className="w-1 h-3 bg-accent-primary rounded-full animate-pulse" />
-              <span className="w-1 h-4 bg-accent-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-              <span className="w-1 h-2 bg-accent-primary rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+              <span className="w-1 h-3 bg-accent-primary rounded-full playing-bar" />
+              <span className="w-1 h-4 bg-accent-primary rounded-full playing-bar" style={{ animationDelay: '0.2s' }} />
+              <span className="w-1 h-2 bg-accent-primary rounded-full playing-bar" style={{ animationDelay: '0.4s' }} />
             </div>
           ) : (
             <span className="text-text-muted group-hover:hidden">{index + 1}</span>
@@ -250,7 +313,7 @@ function TrackListItem({
           <input
             type="checkbox"
             checked={isSelected}
-            onChange={onSelect}
+            onChange={() => onSelect?.(track.id)}
             onClick={(e) => e.stopPropagation()}
             className="w-4 h-4 rounded border-2 border-text-muted checked:border-accent-primary checked:bg-accent-primary cursor-pointer"
           />
@@ -259,10 +322,7 @@ function TrackListItem({
 
       {/* Favorite button */}
       <button
-        onClick={(e) => {
-          e.stopPropagation();
-          onToggleFavorite();
-        }}
+        onClick={handleToggleFavorite}
         className={`w-4 h-4 transition-colors ${
           track.isFavorite
             ? 'text-accent-primary'
@@ -274,16 +334,17 @@ function TrackListItem({
       </button>
 
       {/* Thumbnail */}
-      <div className="w-12 h-12 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
+      <div className="w-10 h-10 rounded-lg bg-bg-tertiary overflow-hidden flex-shrink-0">
         {track.thumbnail ? (
           <img
             src={track.thumbnail}
             alt={track.title}
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Music className="w-5 h-5 text-text-muted" />
+            <Music className="w-4 h-4 text-text-muted" />
           </div>
         )}
       </div>
@@ -323,15 +384,29 @@ function TrackListItem({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          onContextMenu(e);
+          handleContextMenu(e);
         }}
         className="w-10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
       >
         <MoreHorizontal className="w-5 h-5 text-text-secondary hover:text-text-primary" />
       </button>
-    </motion.div>
+    </div>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if these specific props change
+  return (
+    prevProps.track.id === nextProps.track.id &&
+    prevProps.track.title === nextProps.track.title &&
+    prevProps.track.isFavorite === nextProps.track.isFavorite &&
+    prevProps.index === nextProps.index &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.showIndex === nextProps.showIndex &&
+    prevProps.showPlayCount === nextProps.showPlayCount &&
+    prevProps.selectable === nextProps.selectable
+  );
+});
 
 interface TrackGridItemProps {
   track: Track;
@@ -341,7 +416,7 @@ interface TrackGridItemProps {
   onContextMenu: (e: React.MouseEvent) => void;
 }
 
-function TrackGridItem({
+const TrackGridItem = memo(function TrackGridItem({
   track,
   isActive,
   isPlaying,
@@ -349,10 +424,8 @@ function TrackGridItem({
   onContextMenu,
 }: TrackGridItemProps): JSX.Element {
   return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      className={`p-3 rounded-xl cursor-pointer group relative ${
+    <div
+      className={`p-3 rounded-xl cursor-pointer group relative transition-transform hover:scale-[1.02] active:scale-[0.98] ${
         isActive ? 'bg-accent-primary/20' : 'bg-bg-secondary hover:bg-bg-tertiary'
       }`}
       onClick={onClick}
@@ -372,6 +445,7 @@ function TrackGridItem({
             src={track.thumbnail}
             alt={track.title}
             className="w-full h-full object-cover"
+            loading="lazy"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
@@ -389,9 +463,9 @@ function TrackGridItem({
         {/* Playing indicator */}
         {isActive && isPlaying && (
           <div className="absolute bottom-2 right-2 flex items-center gap-0.5 bg-accent-primary rounded-full px-2 py-1">
-            <span className="w-1 h-2 bg-white rounded-full animate-pulse" />
-            <span className="w-1 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-            <span className="w-1 h-2 bg-white rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+            <span className="w-1 h-2 bg-white rounded-full playing-bar" />
+            <span className="w-1 h-3 bg-white rounded-full playing-bar" style={{ animationDelay: '0.2s' }} />
+            <span className="w-1 h-2 bg-white rounded-full playing-bar" style={{ animationDelay: '0.4s' }} />
           </div>
         )}
       </div>
@@ -403,6 +477,6 @@ function TrackGridItem({
       <p className="text-xs text-text-secondary truncate">
         {track.artist || 'Artista desconhecido'}
       </p>
-    </motion.div>
+    </div>
   );
-}
+});

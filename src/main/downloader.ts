@@ -547,8 +547,11 @@ export async function downloadTrack(
       }
     });
 
+    let stderrOutput = '';
     proc.stderr.on('data', (data) => {
-      console.error('yt-dlp stderr:', data.toString());
+      const msg = data.toString();
+      stderrOutput += msg;
+      console.error('yt-dlp stderr:', msg);
     });
 
     proc.on('close', (code) => {
@@ -576,7 +579,10 @@ export async function downloadTrack(
 
         resolve(outputFile);
       } else {
-        reject(new Error(`Download failed with code ${code}`));
+        // Include stderr in error message for debugging
+        const errorMsg = stderrOutput.trim() || `Download failed with code ${code}`;
+        console.error('yt-dlp failed:', errorMsg);
+        reject(new Error(errorMsg));
       }
     });
 

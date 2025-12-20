@@ -39,7 +39,9 @@ interface PlayerState {
   mediaSource: MediaElementAudioSourceNode | null;
 
   // Actions
-  loadTrack: (track: Track, autoPlay?: boolean) => void;
+  loadTrack: (track: Track, autoPlay?: boolean, isCrossfadeTransition?: boolean) => void;
+  preloadNextTrack: () => void;
+  startCrossfade: () => void;
   play: () => void;
   pause: () => void;
   stop: () => void;
@@ -76,6 +78,39 @@ function debouncedSave(fn: () => void, delay = 1000) {
   saveTimeout = setTimeout(fn, delay);
 }
 
+// Track listening time
+let lastListeningTimeUpdate = 0;
+
+// Throttle currentTime updates to avoid excessive re-renders
+let lastTimeUpdate = 0;
+const TIME_UPDATE_INTERVAL = 250; // Update UI every 250ms (4 times per second)
+let accumulatedListeningTime = 0;
+const LISTENING_TIME_UPDATE_INTERVAL = 10; // Update every 10 seconds
+
+// Crossfade state
+let crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
+let isCrossfading = false;
+let fadingOutHowl: Howl | null = null;
+
+// Gapless playback state
+let preloadedHowl: Howl | null = null;
+let preloadedTrack: Track | null = null;
+let preloadedIndex: number = -1;
+
+// Helper to get crossfade settings
+async function getCrossfadeSettings(): Promise<{ enabled: boolean; duration: number }> {
+  if (!window.electronAPI) return { enabled: false, duration: 3 };
+  try {
+    const settings = await window.electronAPI.getSettings();
+    return {
+      enabled: settings.crossfadeEnabled ?? false,
+      duration: settings.crossfadeDuration ?? 3,
+    };
+  } catch {
+    return { enabled: false, duration: 3 };
+  }
+}
+
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTrack: null,
   queue: [],
@@ -91,30 +126,54 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   howl: null,
   mediaSource: null,
 
-  loadTrack: (track: Track, autoPlay = true) => {
+  loadTrack: (track: Track, autoPlay = true, isCrossfadeTransition = false) => {
     const { howl: oldHowl, volume, isMuted, mediaSource: oldMediaSource } = get();
 
-    // Disconnect old media source from equalizer
-    if (oldMediaSource) {
-      try {
-        oldMediaSource.disconnect();
-      } catch (e) {
-        console.error('Error disconnecting old media source:', e);
-      }
+    // Clear any pending crossfade timer
+    if (crossfadeTimer) {
+      clearTimeout(crossfadeTimer);
+      crossfadeTimer = null;
     }
 
-    // Clean up old instance - stop it first, then unload
-    if (oldHowl) {
+    // Clear preloaded track since we're loading a new one
+    if (preloadedHowl) {
       try {
-        oldHowl.stop();
-        oldHowl.unload();
+        preloadedHowl.unload();
       } catch (e) {
-        console.error('Error unloading old howl:', e);
+        // Ignore cleanup errors
       }
+      preloadedHowl = null;
+      preloadedTrack = null;
+      preloadedIndex = -1;
     }
 
-    // Clear howl from state immediately
-    set({ howl: null, mediaSource: null });
+    // If this is a crossfade transition, the old howl will be faded out separately
+    if (!isCrossfadeTransition) {
+      // Disconnect old media source from equalizer
+      if (oldMediaSource) {
+        try {
+          oldMediaSource.disconnect();
+        } catch (e) {
+          console.error('Error disconnecting old media source:', e);
+        }
+      }
+
+      // Clean up old instance - stop it first, then unload
+      if (oldHowl) {
+        try {
+          oldHowl.stop();
+          oldHowl.unload();
+        } catch (e) {
+          console.error('Error unloading old howl:', e);
+        }
+      }
+
+      // Clear howl from state immediately
+      set({ howl: null, mediaSource: null });
+    } else {
+      // During crossfade, just clear the references but don't stop the old howl yet
+      set({ howl: null, mediaSource: null });
+    }
 
     // Convert file path to media:// URL for Electron custom protocol
     // Handle Windows paths (D:\folder\file.mp3 -> media://D:/folder/file.mp3)
@@ -155,20 +214,73 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         } catch (e) {
           console.error('Error connecting audio to equalizer:', e);
         }
+
+        // Preload next track for gapless playback
+        get().preloadNextTrack();
       },
       onplay: () => {
         set({ isPlaying: true });
+        // Reset listening time tracker when starting playback
+        lastListeningTimeUpdate = Date.now();
+        accumulatedListeningTime = 0;
+        isCrossfading = false;
+
+        // Setup crossfade timer if enabled
+        const setupCrossfadeTimer = async () => {
+          const { enabled, duration } = await getCrossfadeSettings();
+          if (enabled && howl.duration() > duration + 1) {
+            // Calculate when to start crossfade (duration seconds before end)
+            const crossfadeStartTime = (howl.duration() - duration) * 1000;
+            const currentTime = (howl.seek() as number) * 1000;
+            const delay = crossfadeStartTime - currentTime;
+
+            if (delay > 0) {
+              if (crossfadeTimer) clearTimeout(crossfadeTimer);
+              crossfadeTimer = setTimeout(() => {
+                const { startCrossfade, repeatMode } = get();
+                // Don't crossfade if repeat one is enabled
+                if (repeatMode !== 'one' && !isCrossfading) {
+                  startCrossfade();
+                }
+              }, delay);
+            }
+          }
+        };
+        setupCrossfadeTimer();
+
         // Start tracking time - only if this howl is still the current one
+        // Throttled to reduce React re-renders
         const updateTime = () => {
           const currentHowl = get().howl;
           if (get().isPlaying && currentHowl === howl) {
+            const now = Date.now();
             const time = howl.seek() as number;
-            set({ currentTime: time });
+
+            // Only update state if enough time has passed (throttle UI updates)
+            if (now - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
+              set({ currentTime: time });
+              lastTimeUpdate = now;
+            }
+
+            // Track listening time (keep this accurate)
+            const elapsed = (now - lastListeningTimeUpdate) / 1000; // Convert to seconds
+            accumulatedListeningTime += elapsed;
+            lastListeningTimeUpdate = now;
+
+            // Save listening time every LISTENING_TIME_UPDATE_INTERVAL seconds
+            if (accumulatedListeningTime >= LISTENING_TIME_UPDATE_INTERVAL) {
+              if (window.electronAPI) {
+                window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+              }
+              accumulatedListeningTime = 0;
+            }
+
             // Save state periodically while playing
             debouncedSave(() => get().saveState(), 5000);
             requestAnimationFrame(updateTime);
           }
         };
+        lastTimeUpdate = Date.now();
         requestAnimationFrame(updateTime);
 
         // Update play count only if autoPlay is true
@@ -178,12 +290,39 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onpause: () => {
         set({ isPlaying: false });
+        // Save any accumulated listening time when pausing
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
         get().saveState();
       },
       onstop: () => {
         set({ isPlaying: false, currentTime: 0 });
+        // Save any accumulated listening time when stopping
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
       },
       onend: () => {
+        // Save any accumulated listening time when track ends
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+
+        // If we're crossfading, the next track is already playing, so just clean up
+        if (isCrossfading && fadingOutHowl === howl) {
+          try {
+            howl.unload();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          fadingOutHowl = null;
+          return;
+        }
+
         const { repeatMode, next } = get();
         if (repeatMode === 'one') {
           howl.seek(0);
@@ -244,7 +383,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 
   next: () => {
-    const { queue, queueIndex, repeatMode, isShuffled, loadTrack } = get();
+    const { queue, queueIndex, repeatMode, isShuffled, loadTrack, howl: oldHowl, volume, isMuted } = get();
 
     if (queue.length === 0) return;
 
@@ -265,6 +404,136 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       }
     }
 
+    // Check if we have a preloaded track ready for gapless playback
+    if (preloadedHowl && preloadedTrack && preloadedIndex === nextIndex) {
+      console.log('Using preloaded track for gapless playback:', preloadedTrack.title);
+
+      // Clean up old howl
+      if (oldHowl) {
+        try {
+          oldHowl.stop();
+          oldHowl.unload();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+      }
+
+      // Use the preloaded howl
+      const newHowl = preloadedHowl;
+      const newTrack = preloadedTrack;
+
+      // Clear preloaded state
+      preloadedHowl = null;
+      preloadedTrack = null;
+      preloadedIndex = -1;
+
+      // Set up the preloaded howl with proper event handlers
+      const equalizerStore = useEqualizerStore.getState();
+
+      // Connect to equalizer
+      try {
+        const sounds = (newHowl as any)._sounds;
+        if (sounds && sounds.length > 0) {
+          const audioElement = sounds[0]._node as HTMLAudioElement;
+          if (audioElement) {
+            const mediaSource = equalizerStore.connectMediaElement(audioElement);
+            if (mediaSource) {
+              set({ mediaSource });
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Error connecting preloaded audio to equalizer:', e);
+      }
+
+      // Update state
+      set({
+        currentTrack: newTrack,
+        howl: newHowl,
+        queueIndex: nextIndex,
+        currentTime: 0,
+        duration: newHowl.duration(),
+      });
+
+      // Set volume
+      newHowl.volume(isMuted ? 0 : volume);
+
+      // Play immediately
+      newHowl.play();
+
+      // Set up onplay handler for the preloaded track
+      newHowl.on('play', () => {
+        set({ isPlaying: true });
+        lastListeningTimeUpdate = Date.now();
+        accumulatedListeningTime = 0;
+
+        // Update play count
+        if (window.electronAPI) {
+          window.electronAPI.incrementPlayCount(newTrack.id);
+        }
+
+        // Preload the next track
+        get().preloadNextTrack();
+
+        // Time update loop
+        const updateTime = () => {
+          const currentHowl = get().howl;
+          if (get().isPlaying && currentHowl === newHowl) {
+            const now = Date.now();
+            const time = newHowl.seek() as number;
+
+            if (now - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
+              set({ currentTime: time });
+              lastTimeUpdate = now;
+            }
+
+            const elapsed = (now - lastListeningTimeUpdate) / 1000;
+            accumulatedListeningTime += elapsed;
+            lastListeningTimeUpdate = now;
+
+            if (accumulatedListeningTime >= LISTENING_TIME_UPDATE_INTERVAL) {
+              if (window.electronAPI) {
+                window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+              }
+              accumulatedListeningTime = 0;
+            }
+
+            debouncedSave(() => get().saveState(), 5000);
+            requestAnimationFrame(updateTime);
+          }
+        };
+        lastTimeUpdate = Date.now();
+        requestAnimationFrame(updateTime);
+      });
+
+      newHowl.on('pause', () => {
+        set({ isPlaying: false });
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+        get().saveState();
+      });
+
+      newHowl.on('end', () => {
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+        const { repeatMode: rm, next: nextFn } = get();
+        if (rm === 'one') {
+          newHowl.seek(0);
+          newHowl.play();
+        } else {
+          nextFn();
+        }
+      });
+
+      get().saveState();
+      return;
+    }
+
+    // Fallback to normal loading if no preloaded track
     set({ queueIndex: nextIndex });
     loadTrack(queue[nextIndex]);
   },
@@ -383,6 +652,17 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     if (howl) {
       howl.unload();
     }
+    // Clean up preloaded track
+    if (preloadedHowl) {
+      try {
+        preloadedHowl.unload();
+      } catch (e) {
+        // Ignore
+      }
+      preloadedHowl = null;
+      preloadedTrack = null;
+      preloadedIndex = -1;
+    }
     set({
       queue: [],
       queueIndex: -1,
@@ -401,6 +681,284 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       set({ queueIndex: index });
       loadTrack(queue[index], true);
     }
+  },
+
+  preloadNextTrack: () => {
+    const { queue, queueIndex, repeatMode, isShuffled, volume, isMuted } = get();
+
+    if (queue.length === 0) return;
+
+    // Calculate next index
+    let nextIndex: number;
+    if (isShuffled) {
+      // For shuffle, we can't really preload since it's random
+      // But we can preload a random track
+      nextIndex = Math.floor(Math.random() * queue.length);
+    } else {
+      nextIndex = queueIndex + 1;
+      if (nextIndex >= queue.length) {
+        if (repeatMode === 'all') {
+          nextIndex = 0;
+        } else {
+          // No next track to preload
+          return;
+        }
+      }
+    }
+
+    const nextTrack = queue[nextIndex];
+    if (!nextTrack) return;
+
+    // Don't preload if already preloaded this track
+    if (preloadedTrack?.id === nextTrack.id && preloadedHowl) return;
+
+    // Clean up previous preloaded howl
+    if (preloadedHowl) {
+      try {
+        preloadedHowl.unload();
+      } catch (e) {
+        // Ignore cleanup errors
+      }
+      preloadedHowl = null;
+      preloadedTrack = null;
+      preloadedIndex = -1;
+    }
+
+    // Preload the next track
+    const nextFileUrl = 'media://' + nextTrack.path.replace(/\\/g, '/');
+
+    preloadedHowl = new Howl({
+      src: [nextFileUrl],
+      html5: true,
+      volume: isMuted ? 0 : volume,
+      preload: true,
+      onload: () => {
+        console.log('Preloaded next track:', nextTrack.title);
+        preloadedTrack = nextTrack;
+        preloadedIndex = nextIndex;
+      },
+      onloaderror: (_id, error) => {
+        console.error('Error preloading track:', error);
+        preloadedHowl = null;
+        preloadedTrack = null;
+        preloadedIndex = -1;
+      },
+    });
+  },
+
+  startCrossfade: async () => {
+    const { queue, queueIndex, repeatMode, isShuffled, howl, volume, isMuted, loadTrack } = get();
+
+    if (queue.length === 0 || !howl || isCrossfading) return;
+
+    // Calculate next index
+    let nextIndex: number;
+    if (isShuffled) {
+      nextIndex = Math.floor(Math.random() * queue.length);
+    } else {
+      nextIndex = queueIndex + 1;
+      if (nextIndex >= queue.length) {
+        if (repeatMode === 'all') {
+          nextIndex = 0;
+        } else {
+          // No more tracks to play
+          return;
+        }
+      }
+    }
+
+    const nextTrack = queue[nextIndex];
+    if (!nextTrack) return;
+
+    // Get crossfade duration
+    const { duration } = await getCrossfadeSettings();
+
+    // Mark as crossfading
+    isCrossfading = true;
+    fadingOutHowl = howl;
+
+    // Start fading out the current track
+    const fadeSteps = 20;
+    const stepDuration = (duration * 1000) / fadeSteps;
+    const currentVolume = isMuted ? 0 : volume;
+    let step = 0;
+
+    const fadeOutInterval = setInterval(() => {
+      step++;
+      const newVolume = currentVolume * (1 - step / fadeSteps);
+      if (fadingOutHowl) {
+        fadingOutHowl.volume(Math.max(0, newVolume));
+      }
+      if (step >= fadeSteps) {
+        clearInterval(fadeOutInterval);
+        // Clean up the old howl
+        if (fadingOutHowl) {
+          try {
+            fadingOutHowl.stop();
+            fadingOutHowl.unload();
+          } catch (e) {
+            // Ignore cleanup errors
+          }
+          fadingOutHowl = null;
+        }
+        isCrossfading = false;
+      }
+    }, stepDuration);
+
+    // Update queue index and load next track with crossfade flag
+    set({ queueIndex: nextIndex });
+
+    // Load and start the next track with fade in
+    const nextFileUrl = 'media://' + nextTrack.path.replace(/\\/g, '/');
+    const equalizerStore = useEqualizerStore.getState();
+    equalizerStore.initAudioContext();
+
+    const newHowl = new Howl({
+      src: [nextFileUrl],
+      html5: true,
+      volume: 0, // Start silent for fade in
+      onload: () => {
+        set({ duration: newHowl.duration() });
+
+        // Connect to equalizer
+        try {
+          const sounds = (newHowl as any)._sounds;
+          if (sounds && sounds.length > 0) {
+            const audioElement = sounds[0]._node as HTMLAudioElement;
+            if (audioElement) {
+              const mediaSource = equalizerStore.connectMediaElement(audioElement);
+              if (mediaSource) {
+                set({ mediaSource });
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error connecting audio to equalizer:', e);
+        }
+      },
+      onplay: () => {
+        set({ isPlaying: true });
+        lastListeningTimeUpdate = Date.now();
+        accumulatedListeningTime = 0;
+
+        // Fade in the new track
+        let fadeInStep = 0;
+        const targetVolume = isMuted ? 0 : volume;
+        const fadeInInterval = setInterval(() => {
+          fadeInStep++;
+          const newVolume = targetVolume * (fadeInStep / fadeSteps);
+          newHowl.volume(Math.min(targetVolume, newVolume));
+          if (fadeInStep >= fadeSteps) {
+            clearInterval(fadeInInterval);
+            newHowl.volume(targetVolume);
+          }
+        }, stepDuration);
+
+        // Setup crossfade timer for this new track
+        const setupCrossfadeTimer = async () => {
+          const { enabled, duration: cfDuration } = await getCrossfadeSettings();
+          if (enabled && newHowl.duration() > cfDuration + 1) {
+            const crossfadeStartTime = (newHowl.duration() - cfDuration) * 1000;
+            if (crossfadeTimer) clearTimeout(crossfadeTimer);
+            crossfadeTimer = setTimeout(() => {
+              const { startCrossfade, repeatMode: rm } = get();
+              if (rm !== 'one' && !isCrossfading) {
+                startCrossfade();
+              }
+            }, crossfadeStartTime);
+          }
+        };
+        setupCrossfadeTimer();
+
+        // Time update loop
+        const updateTime = () => {
+          const currentHowl = get().howl;
+          if (get().isPlaying && currentHowl === newHowl) {
+            const now = Date.now();
+            const time = newHowl.seek() as number;
+
+            if (now - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
+              set({ currentTime: time });
+              lastTimeUpdate = now;
+            }
+
+            const elapsed = (now - lastListeningTimeUpdate) / 1000;
+            accumulatedListeningTime += elapsed;
+            lastListeningTimeUpdate = now;
+
+            if (accumulatedListeningTime >= LISTENING_TIME_UPDATE_INTERVAL) {
+              if (window.electronAPI) {
+                window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+              }
+              accumulatedListeningTime = 0;
+            }
+
+            debouncedSave(() => get().saveState(), 5000);
+            requestAnimationFrame(updateTime);
+          }
+        };
+        lastTimeUpdate = Date.now();
+        requestAnimationFrame(updateTime);
+
+        // Update play count
+        if (window.electronAPI) {
+          window.electronAPI.incrementPlayCount(nextTrack.id);
+        }
+      },
+      onpause: () => {
+        set({ isPlaying: false });
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+        get().saveState();
+      },
+      onstop: () => {
+        set({ isPlaying: false, currentTime: 0 });
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+      },
+      onend: () => {
+        if (accumulatedListeningTime > 0 && window.electronAPI) {
+          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+          accumulatedListeningTime = 0;
+        }
+
+        if (isCrossfading && fadingOutHowl === newHowl) {
+          try {
+            newHowl.unload();
+          } catch (e) {
+            // Ignore
+          }
+          fadingOutHowl = null;
+          return;
+        }
+
+        const { repeatMode: rm, next } = get();
+        if (rm === 'one') {
+          newHowl.seek(0);
+          newHowl.play();
+        } else {
+          next();
+        }
+      },
+      onloaderror: (_id, error) => {
+        console.error('Error loading track:', error);
+        set({ isPlaying: false });
+        isCrossfading = false;
+      },
+    });
+
+    set({ currentTrack: nextTrack, howl: newHowl, currentTime: 0 });
+
+    // Start playing the new track
+    setTimeout(() => {
+      newHowl.play();
+    }, 100);
+
+    get().saveState();
   },
 
   saveState: () => {
@@ -527,24 +1085,65 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 },
                 onplay: () => {
                   set({ isPlaying: true });
+                  // Reset listening time tracker when starting playback
+                  lastListeningTimeUpdate = Date.now();
+                  accumulatedListeningTime = 0;
+
+                  // Throttled update loop to reduce React re-renders
                   const updateTime = () => {
                     if (get().isPlaying && get().howl === howl) {
+                      const now = Date.now();
                       const time = howl.seek() as number;
-                      set({ currentTime: time });
+
+                      // Only update state if enough time has passed
+                      if (now - lastTimeUpdate >= TIME_UPDATE_INTERVAL) {
+                        set({ currentTime: time });
+                        lastTimeUpdate = now;
+                      }
+
+                      // Track listening time (keep this accurate)
+                      const elapsed = (now - lastListeningTimeUpdate) / 1000;
+                      accumulatedListeningTime += elapsed;
+                      lastListeningTimeUpdate = now;
+
+                      // Save listening time every LISTENING_TIME_UPDATE_INTERVAL seconds
+                      if (accumulatedListeningTime >= LISTENING_TIME_UPDATE_INTERVAL) {
+                        if (window.electronAPI) {
+                          window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+                        }
+                        accumulatedListeningTime = 0;
+                      }
+
                       debouncedSave(() => get().saveState(), 5000);
                       requestAnimationFrame(updateTime);
                     }
                   };
+                  lastTimeUpdate = Date.now();
                   requestAnimationFrame(updateTime);
                 },
                 onpause: () => {
                   set({ isPlaying: false });
+                  // Save any accumulated listening time when pausing
+                  if (accumulatedListeningTime > 0 && window.electronAPI) {
+                    window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+                    accumulatedListeningTime = 0;
+                  }
                   get().saveState();
                 },
                 onstop: () => {
                   set({ isPlaying: false, currentTime: 0 });
+                  // Save any accumulated listening time when stopping
+                  if (accumulatedListeningTime > 0 && window.electronAPI) {
+                    window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+                    accumulatedListeningTime = 0;
+                  }
                 },
                 onend: () => {
+                  // Save any accumulated listening time when track ends
+                  if (accumulatedListeningTime > 0 && window.electronAPI) {
+                    window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
+                    accumulatedListeningTime = 0;
+                  }
                   const { repeatMode, next } = get();
                   if (repeatMode === 'one') {
                     howl.seek(0);

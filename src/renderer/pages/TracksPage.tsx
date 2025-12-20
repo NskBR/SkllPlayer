@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Search,
   RefreshCw,
@@ -58,6 +58,13 @@ export default function TracksPage(): JSX.Element {
     }
     setIsRefreshing(false);
   };
+
+  // Update a single track in state without reloading all tracks
+  const handleTrackUpdate = useCallback((trackId: number, updates: Partial<Track>) => {
+    setTracks(prev => prev.map(track =>
+      track.id === trackId ? { ...track, ...updates } : track
+    ));
+  }, []);
 
   const filteredAndSortedTracks = useMemo(() => {
     let result = [...tracks];
@@ -228,7 +235,7 @@ export default function TracksPage(): JSX.Element {
           onPlay={handlePlay}
           viewMode={viewMode}
           showIndex
-          onTrackUpdate={loadTracks}
+          onTrackUpdate={handleTrackUpdate}
         />
       )}
     </div>

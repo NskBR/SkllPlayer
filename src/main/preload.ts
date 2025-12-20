@@ -67,13 +67,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Downloader
   searchYouTube: (query: string) => ipcRenderer.invoke('youtube-search', query),
-  downloadTrack: (url: string, format: string) => ipcRenderer.invoke('download-track', url, format),
+  downloadTrack: (url: string, format: string, metadata?: { title: string; artist: string; thumbnail: string }) =>
+    ipcRenderer.invoke('download-track', url, format, metadata),
   onDownloadProgress: (callback: (progress: { percent: number; speed: string; eta: string }) => void) => {
     ipcRenderer.on('download-progress', (_event, progress) => callback(progress));
   },
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   getYtDlpStatus: () => ipcRenderer.invoke('get-ytdlp-status'),
   installYtDlp: () => ipcRenderer.invoke('install-ytdlp'),
+
+  // Download history
+  getDownloadHistory: () => ipcRenderer.invoke('get-download-history'),
+  addToDownloadHistory: (item: {
+    id: string;
+    videoId: string;
+    title: string;
+    artist: string;
+    thumbnail: string | null;
+    format: string;
+    downloadedAt: string;
+    filePath: string;
+  }) => ipcRenderer.invoke('add-to-download-history', item),
+  clearDownloadHistory: () => ipcRenderer.invoke('clear-download-history'),
 });
 
 // Type definitions for the exposed API
@@ -114,11 +129,14 @@ export interface ElectronAPI {
   savePlayerState: (state: PlayerState) => Promise<void>;
   loadPlayerState: () => Promise<PlayerState | null>;
   searchYouTube: (query: string) => Promise<YouTubeResult[]>;
-  downloadTrack: (url: string, format: string) => Promise<string>;
+  downloadTrack: (url: string, format: string, metadata?: { title: string; artist: string; thumbnail: string }) => Promise<string>;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
   cancelDownload: (id: string) => Promise<void>;
   getYtDlpStatus: () => Promise<YtDlpStatus>;
   installYtDlp: () => Promise<boolean>;
+  getDownloadHistory: () => Promise<DownloadHistoryItem[]>;
+  addToDownloadHistory: (item: DownloadHistoryItem) => Promise<DownloadHistoryItem[]>;
+  clearDownloadHistory: () => Promise<DownloadHistoryItem[]>;
 }
 
 interface YtDlpStatus {
@@ -214,6 +232,17 @@ interface PlayerState {
   isShuffled: boolean;
   queueIds: number[];
   queueIndex: number;
+}
+
+interface DownloadHistoryItem {
+  id: string;
+  videoId: string;
+  title: string;
+  artist: string;
+  thumbnail: string | null;
+  format: string;
+  downloadedAt: string;
+  filePath: string;
 }
 
 declare global {

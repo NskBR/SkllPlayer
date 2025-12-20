@@ -1,7 +1,16 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as os from 'os';
 
-export async function createSplashWindow(): Promise<BrowserWindow> {
+export async function createSplashWindow(logoPath?: string): Promise<BrowserWindow> {
+  // Convert logo to base64 if it exists
+  let logoDataUrl = '';
+  if (logoPath && fs.existsSync(logoPath)) {
+    const logoBuffer = fs.readFileSync(logoPath);
+    logoDataUrl = `data:image/png;base64,${logoBuffer.toString('base64')}`;
+  }
+
   const splash = new BrowserWindow({
     width: 400,
     height: 300,
@@ -71,6 +80,14 @@ export async function createSplashWindow(): Promise<BrowserWindow> {
         }
 
         .logo {
+          width: 100%;
+          height: 100%;
+          border-radius: 24px;
+          object-fit: contain;
+          animation: pulse 2s ease-in-out infinite;
+        }
+
+        .logo-fallback {
           width: 100%;
           height: 100%;
           background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
@@ -187,7 +204,10 @@ export async function createSplashWindow(): Promise<BrowserWindow> {
     <body>
       <div class="splash-container">
         <div class="logo-container">
-          <div class="logo">S</div>
+          ${logoDataUrl
+            ? `<img class="logo" src="${logoDataUrl}" alt="SkllPlayer" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />`
+            : ''}
+          <div class="logo-fallback" style="display:${logoDataUrl ? 'none' : 'flex'};">S</div>
           <div class="equalizer">
             <div class="bar"></div>
             <div class="bar"></div>
@@ -208,7 +228,12 @@ export async function createSplashWindow(): Promise<BrowserWindow> {
     </html>
   `;
 
-  await splash.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(splashHTML)}`);
+  // Write HTML to temp file to avoid data URL length limits
+  const tempDir = app.getPath('temp');
+  const splashFile = path.join(tempDir, 'skllplayer-splash.html');
+  fs.writeFileSync(splashFile, splashHTML, 'utf-8');
+
+  await splash.loadFile(splashFile);
   splash.show();
 
   return splash;

@@ -35,21 +35,18 @@ export default function Titlebar(): JSX.Element {
   };
 
   return (
-    <header className="flex items-center justify-between h-[var(--header-height)] bg-sidebar-bg border-b border-bg-tertiary select-none">
-      {/* Drag region - left side */}
-      <div className="flex items-center h-full px-4 drag-region flex-1">
-        <div className="flex items-center gap-2 no-drag">
-          {/* Logo */}
-          <div className="w-6 h-6 rounded-md bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
-            <span className="text-white text-xs font-bold">S</span>
-          </div>
-          <span className="text-text-primary font-semibold text-sm">SkllPlayer</span>
-        </div>
-        <span className="ml-3 text-text-muted text-xs">v0.1 Build Test</span>
+    <header className="relative flex items-center h-[var(--header-height)] bg-sidebar-bg border-b border-bg-tertiary select-none drag-region">
+      {/* Centered title */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <span className="text-text-primary font-semibold text-sm">SkllPlayer</span>
+        <span className="ml-2 text-text-muted text-xs">v0.1</span>
       </div>
 
+      {/* Spacer */}
+      <div className="flex-1" />
+
       {/* Window controls */}
-      <div className="flex items-center h-full">
+      <div className="flex items-center h-full relative z-10">
         {/* Minimize */}
         <button
           onClick={handleMinimize}
