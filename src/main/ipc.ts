@@ -1,4 +1,4 @@
-import { ipcMain, dialog, app, BrowserWindow } from 'electron';
+import { ipcMain, dialog, app, BrowserWindow, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import Store from 'electron-store';
@@ -9,10 +9,29 @@ import {
   searchYouTube,
   downloadTrack,
   cancelDownload,
-  getYtDlpStatus
+  getYtDlpStatus,
+  isUBlockInstalled,
+  installUBlock,
+  getUBlockStatus
 } from './downloader';
 
 const store = new Store();
+
+// Helper function for deep merging objects
+function deepMerge(target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...target };
+  for (const key in source) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+      result[key] = deepMerge(
+        (target[key] as Record<string, unknown>) || {},
+        source[key] as Record<string, unknown>
+      );
+    } else {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
 
 // Types
 interface Track {
@@ -35,6 +54,7 @@ interface Playlist {
   name: string;
   createdAt: string;
   trackIds: number[];
+  coverImage?: string | null; // Custom cover image (base64)
 }
 
 interface DownloadHistoryItem {
@@ -102,6 +122,51 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
       return result.filePaths[0];
     }
     return null;
+  });
+
+  // Analyze folder before scanning to warn about large folders
+  ipcMain.handle('analyze-folder', async (_event, folderPath: string) => {
+    const audioExtensions = ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.opus'];
+    let totalFiles = 0;
+    let audioFiles = 0;
+    let totalSize = 0;
+
+    function analyzeDir(dir: string, depth: number = 0): void {
+      // Limit depth to prevent infinite loops in symlinks
+      if (depth > 20) return;
+
+      try {
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const fullPath = path.join(dir, item);
+          try {
+            const stat = fs.statSync(fullPath);
+            if (stat.isDirectory()) {
+              analyzeDir(fullPath, depth + 1);
+            } else {
+              totalFiles++;
+              totalSize += stat.size;
+              if (audioExtensions.includes(path.extname(item).toLowerCase())) {
+                audioFiles++;
+              }
+            }
+          } catch (e) {
+            // Skip files we can't access
+          }
+        }
+      } catch (e) {
+        // Skip directories we can't access
+      }
+    }
+
+    analyzeDir(folderPath);
+
+    return {
+      totalFiles,
+      audioFiles,
+      totalSize,
+      totalSizeGB: (totalSize / (1024 * 1024 * 1024)).toFixed(2)
+    };
   });
 
   ipcMain.handle('scan-music-folder', async (_event, folderPath: string) => {
@@ -269,12 +334,27 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
   // Playlist handlers
   ipcMain.handle('db-get-playlists', () => {
     const playlists = getPlaylists();
-    return playlists.map(p => ({
-      id: p.id,
-      name: p.name,
-      createdAt: p.createdAt,
-      trackCount: p.trackIds.length,
-    }));
+    const tracks = getTracks();
+
+    return playlists.map(p => {
+      // Get first track's thumbnail as fallback
+      let firstTrackThumbnail: string | null = null;
+      if (p.trackIds.length > 0) {
+        const firstTrack = tracks.find(t => t.id === p.trackIds[0]);
+        if (firstTrack) {
+          firstTrackThumbnail = firstTrack.thumbnail;
+        }
+      }
+
+      return {
+        id: p.id,
+        name: p.name,
+        createdAt: p.createdAt,
+        trackCount: p.trackIds.length,
+        coverImage: p.coverImage || null,
+        firstTrackThumbnail,
+      };
+    });
   });
 
   ipcMain.handle('db-create-playlist', (_event, name: string) => {
@@ -335,6 +415,58 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
       .filter((t): t is Track => t !== undefined);
   });
 
+  ipcMain.handle('db-set-playlist-cover', (_event, playlistId: number, coverImage: string | null) => {
+    const playlists = getPlaylists();
+    const index = playlists.findIndex(p => p.id === playlistId);
+    if (index !== -1) {
+      playlists[index].coverImage = coverImage;
+      savePlaylists(playlists);
+    }
+  });
+
+  ipcMain.handle('db-select-playlist-cover', async (_event, playlistId: number) => {
+    console.log('Selecting cover for playlist:', playlistId);
+
+    // Get the focused window for the dialog
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+
+    const result = await dialog.showOpenDialog(focusedWindow || mainWindow!, {
+      properties: ['openFile'],
+      title: 'Selecionar imagem de capa',
+      filters: [
+        { name: 'Imagens', extensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'] },
+      ],
+    });
+
+    console.log('Dialog result:', result);
+
+    if (!result.canceled && result.filePaths.length > 0) {
+      const imagePath = result.filePaths[0];
+      console.log('Selected image:', imagePath);
+      try {
+        const imageBuffer = fs.readFileSync(imagePath);
+        const ext = path.extname(imagePath).toLowerCase().slice(1);
+        const mimeType = ext === 'jpg' ? 'jpeg' : ext;
+        const base64 = `data:image/${mimeType};base64,${imageBuffer.toString('base64')}`;
+
+        // Save to playlist
+        const playlists = getPlaylists();
+        const index = playlists.findIndex(p => p.id === playlistId);
+        if (index !== -1) {
+          playlists[index].coverImage = base64;
+          savePlaylists(playlists);
+          console.log('Cover saved for playlist:', playlistId);
+        }
+
+        return base64;
+      } catch (e) {
+        console.error('Error reading image file:', e);
+        return null;
+      }
+    }
+    return null;
+  });
+
   // Statistics handlers
   ipcMain.handle('db-get-stats', () => {
     const tracks = getTracks();
@@ -389,7 +521,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
       ? path.join(process.resourcesPath, 'themes')
       : path.join(__dirname, '../../themes');
 
-    const themes: Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean }> = [];
+    const themes: Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean; readonly?: boolean }> = [];
 
     if (fs.existsSync(themesPath)) {
       const files = fs.readdirSync(themesPath);
@@ -406,6 +538,7 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
               category: themeData.category || (isCustom ? 'community' : 'official'),
               windowEffect: themeData.windowEffect,
               isCustom,
+              readonly: themeData.readonly || false,
             });
           } catch (e) {
             // Skip invalid theme files
@@ -478,6 +611,51 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
     const themePath = path.join(themesPath, fileName);
 
     fs.writeFileSync(themePath, JSON.stringify(theme, null, 2));
+  });
+
+  // Update an existing theme file (for editing any theme)
+  ipcMain.handle('update-theme', async (_event, themeName: string, updates: Record<string, unknown>) => {
+    const themesPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'themes')
+      : path.join(__dirname, '../../themes');
+
+    console.log('[update-theme] themesPath:', themesPath);
+    console.log('[update-theme] themeName:', themeName);
+    console.log('[update-theme] updates:', JSON.stringify(updates, null, 2));
+
+    try {
+      const files = fs.readdirSync(themesPath);
+      console.log('[update-theme] files:', files);
+      for (const file of files) {
+        if (file.endsWith('.theme.json')) {
+          const themePath = path.join(themesPath, file);
+          const themeData = JSON.parse(fs.readFileSync(themePath, 'utf-8'));
+          if (themeData.name === themeName) {
+            console.log('[update-theme] Found theme file:', themePath);
+            // Deep merge updates into theme data
+            const updatedTheme = deepMerge(themeData, updates);
+            console.log('[update-theme] Saving updated theme...');
+            fs.writeFileSync(themePath, JSON.stringify(updatedTheme, null, 2));
+            console.log('[update-theme] Theme saved successfully!');
+            return updatedTheme;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[update-theme] Error updating theme:', e);
+      throw e;
+    }
+    console.error('[update-theme] Theme not found:', themeName);
+    throw new Error('Theme not found');
+  });
+
+  // Open themes folder in file explorer
+  ipcMain.handle('open-themes-folder', async () => {
+    const themesPath = app.isPackaged
+      ? path.join(process.resourcesPath, 'themes')
+      : path.join(__dirname, '../../themes');
+
+    await shell.openPath(themesPath);
   });
 
   // Settings handlers
@@ -627,6 +805,16 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
 
   ipcMain.handle('install-ytdlp', async () => {
     await installYtDlp();
+    return true;
+  });
+
+  // uBlock Origin handlers
+  ipcMain.handle('get-ublock-status', () => {
+    return getUBlockStatus();
+  });
+
+  ipcMain.handle('install-ublock', async () => {
+    await installUBlock();
     return true;
   });
 

@@ -1,15 +1,28 @@
-import { defineConfig } from 'vite'
+import { defineConfig, Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+// Plugin to remove crossorigin attribute for file:// protocol compatibility
+function removeCrossOrigin(): Plugin {
+  return {
+    name: 'remove-crossorigin',
+    transformIndexHtml(html) {
+      return html.replace(/ crossorigin/g, '');
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), removeCrossOrigin()],
   base: './',
   root: 'src/renderer',
   publicDir: '../../Public',
   build: {
     outDir: '../../dist/renderer',
     emptyOutDir: true,
+    modulePreload: {
+      polyfill: false,
+    },
   },
   resolve: {
     alias: {

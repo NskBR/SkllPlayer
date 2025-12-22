@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import type { LayoutOverrides, ColorOverrides, ThemeGradient, GradientConfig } from '../types/electron';
+import type { LayoutOverrides, ColorOverrides, FontOverrides, ThemeFontSettings, ThemeColorSettings, ThemeGradient, GradientConfig } from '../types/electron';
 
 interface ThemeColors {
   background: {
@@ -48,6 +48,10 @@ interface ThemeLayout {
     position: 'left' | 'right' | 'top';
     width: string;
     collapsedWidth: string;
+    visible?: boolean;
+    collapsed?: boolean;
+    autoCollapse?: boolean;
+    autoExpand?: boolean;
   };
   player: {
     position: 'bottom' | 'top';
@@ -56,6 +60,9 @@ interface ThemeLayout {
   header: {
     visible: boolean;
     height: string;
+  };
+  library?: {
+    view: 'grid' | 'list' | 'columns';
   };
 }
 
@@ -101,18 +108,23 @@ interface ThemeContextType {
   theme: Theme | null;
   themeName: string;
   themeType: 'dark' | 'light';
-  availableThemes: Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean }>;
-  loadTheme: (name: string) => Promise<void>;
+  availableThemes: Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean; readonly?: boolean }>;
+  loadTheme: (name: string, skipAnimation?: boolean) => Promise<void>;
   refreshThemes: () => Promise<void>;
   layout: ThemeLayout | null;
   colors: ThemeColors | null;
+  fonts: ThemeFonts | null;
   // Override management
   layoutOverrides: LayoutOverrides;
   colorOverrides: ColorOverrides;
+  fontOverrides: FontOverrides;
   updateLayoutOverride: (overrides: LayoutOverrides) => Promise<void>;
   updateColorOverride: (overrides: ColorOverrides) => Promise<void>;
+  updateFontOverride: (overrides: FontOverrides) => Promise<void>;
   resetLayoutOverrides: () => Promise<void>;
   resetColorOverrides: () => Promise<void>;
+  resetFontOverrides: () => Promise<void>;
+  isTransitioning: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -168,7 +180,8 @@ function generateGradientCSS(gradient: ThemeGradient | GradientConfig | undefine
 function applyThemeToCSS(
   theme: Theme,
   colorOverrides: ColorOverrides = {},
-  layoutOverrides: LayoutOverrides = {}
+  layoutOverrides: LayoutOverrides = {},
+  fontOverrides: FontOverrides = {}
 ): void {
   const root = document.documentElement;
 
@@ -222,9 +235,9 @@ function applyThemeToCSS(
   root.style.setProperty('--sidebar-gradient', sidebarGradientCSS || 'none');
   root.style.setProperty('--sidebar-gradient-enabled', sidebarGradientCSS ? '1' : '0');
 
-  // Fonts
-  root.style.setProperty('--font-primary', theme.fonts.primary);
-  root.style.setProperty('--font-secondary', theme.fonts.secondary);
+  // Fonts (with overrides)
+  root.style.setProperty('--font-primary', fontOverrides.primary || theme.fonts.primary);
+  root.style.setProperty('--font-secondary', fontOverrides.secondary || theme.fonts.secondary);
   root.style.setProperty('--font-size-small', theme.fonts.sizes.small);
   root.style.setProperty('--font-size-normal', theme.fonts.sizes.normal);
   root.style.setProperty('--font-size-medium', theme.fonts.sizes.medium);
@@ -255,6 +268,7 @@ function getMergedLayout(theme: Theme | null, overrides: LayoutOverrides): Theme
     sidebar: { ...defaultLayout.sidebar, ...overrides.sidebar },
     player: { ...defaultLayout.player, ...overrides.player },
     header: { ...defaultLayout.header, ...overrides.header },
+    library: { view: 'grid', ...defaultLayout.library, ...overrides.library },
   };
 }
 
@@ -270,65 +284,222 @@ function getMergedColors(theme: Theme | null, overrides: ColorOverrides): ThemeC
   };
 }
 
+// Helper to merge fonts with overrides
+function getMergedFonts(theme: Theme | null, overrides: FontOverrides): ThemeFonts {
+  const defaultFonts = theme?.fonts || defaultTheme.fonts;
+  return {
+    ...defaultFonts,
+    primary: overrides.primary || defaultFonts.primary,
+    secondary: overrides.secondary || defaultFonts.secondary,
+  };
+}
+
+// Theme transition animation helper - Professional loading screen
+function playThemeTransition(onMidpoint: () => void): Promise<void> {
+  return new Promise((resolve) => {
+    // Get the app container for content fade effect
+    const appContainer = document.querySelector('.app-container') as HTMLElement;
+
+    // Create overlay container
+    const overlay = document.createElement('div');
+    overlay.className = 'theme-transition-overlay';
+
+    // Create particles background
+    const particles = document.createElement('div');
+    particles.className = 'theme-loading-particles';
+    for (let i = 0; i < 6; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'theme-loading-particle';
+      particles.appendChild(particle);
+    }
+
+    // Create loading container
+    const container = document.createElement('div');
+    container.className = 'theme-loading-container';
+
+    // Create logo with app symbol icon
+    const logo = document.createElement('div');
+    logo.className = 'theme-loading-logo';
+    logo.innerHTML = `<img src="./Icon/symbol.png" alt="SkllPlayer" style="width: 50px; height: 50px; z-index: 2; object-fit: contain;" />`;
+
+    // Create animated dots
+    const dots = document.createElement('div');
+    dots.className = 'theme-loading-dots';
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'theme-loading-dot';
+      dots.appendChild(dot);
+    }
+
+    // Create progress bar
+    const progress = document.createElement('div');
+    progress.className = 'theme-loading-progress';
+    const progressBar = document.createElement('div');
+    progressBar.className = 'theme-loading-progress-bar';
+    progress.appendChild(progressBar);
+
+    // Assemble the loading screen
+    container.appendChild(logo);
+    container.appendChild(dots);
+    container.appendChild(progress);
+    overlay.appendChild(particles);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+
+    // Force reflow
+    void overlay.offsetWidth;
+
+    // Fade in overlay and fade out content
+    overlay.classList.add('visible');
+    if (appContainer) {
+      appContainer.classList.add('theme-content-fade-out');
+    }
+
+    // Apply theme after content is faded
+    const fadeInDuration = 300;
+    const contentFadeDuration = 250;
+
+    setTimeout(() => {
+      // Apply new theme while content is hidden
+      onMidpoint();
+
+      // Start fading content back in with new theme
+      setTimeout(() => {
+        if (appContainer) {
+          appContainer.classList.remove('theme-content-fade-out');
+          appContainer.classList.add('theme-content-fade-in');
+        }
+      }, 50);
+    }, Math.max(fadeInDuration, contentFadeDuration));
+
+    // Start fade out overlay (don't remove visible, just add fade-out to override)
+    const holdDuration = 350;
+    setTimeout(() => {
+      overlay.classList.add('fade-out');
+    }, fadeInDuration + holdDuration);
+
+    // Remove overlay and cleanup after fade out
+    const fadeOutDuration = 400;
+    setTimeout(() => {
+      overlay.remove();
+      if (appContainer) {
+        appContainer.classList.remove('theme-content-fade-in');
+      }
+      resolve();
+    }, fadeInDuration + holdDuration + fadeOutDuration);
+  });
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }): JSX.Element {
   const [theme, setTheme] = useState<Theme | null>(null);
   const [themeName, setThemeName] = useState<string>('Default Dark');
-  const [availableThemes, setAvailableThemes] = useState<Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean }>>([]);
+  const [availableThemes, setAvailableThemes] = useState<Array<{ name: string; author: string; type: string; category: string; windowEffect?: string; isCustom: boolean; readonly?: boolean }>>([]);
   const [layoutOverrides, setLayoutOverrides] = useState<LayoutOverrides>({});
-  const [colorOverrides, setColorOverrides] = useState<ColorOverrides>({});
+  const [themeFontSettings, setThemeFontSettings] = useState<ThemeFontSettings>({});
+  const [themeColorSettings, setThemeColorSettings] = useState<ThemeColorSettings>({});
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   // Refs to always have current values in callbacks
   const layoutOverridesRef = useRef<LayoutOverrides>({});
-  const colorOverridesRef = useRef<ColorOverrides>({});
+  const themeFontSettingsRef = useRef<ThemeFontSettings>({});
+  const themeColorSettingsRef = useRef<ThemeColorSettings>({});
   const themeRef = useRef<Theme | null>(null);
+  const themeNameRef = useRef<string>('Default Dark');
+
+  // Derived overrides for current theme
+  const fontOverrides = themeFontSettings[themeName] || {};
+  const colorOverrides = themeColorSettings[themeName] || {};
+  const fontOverridesRef = useRef<FontOverrides>({});
+  const colorOverridesRef = useRef<ColorOverrides>({});
 
   // Keep refs in sync with state
   useEffect(() => { layoutOverridesRef.current = layoutOverrides; }, [layoutOverrides]);
+  useEffect(() => { themeFontSettingsRef.current = themeFontSettings; }, [themeFontSettings]);
+  useEffect(() => { themeColorSettingsRef.current = themeColorSettings; }, [themeColorSettings]);
+  useEffect(() => { fontOverridesRef.current = fontOverrides; }, [fontOverrides]);
   useEffect(() => { colorOverridesRef.current = colorOverrides; }, [colorOverrides]);
   useEffect(() => { themeRef.current = theme; }, [theme]);
+  useEffect(() => { themeNameRef.current = themeName; }, [themeName]);
 
-  const loadTheme = useCallback(async (name: string) => {
-    try {
-      // Add transitioning class to disable transitions during theme change
-      document.body.classList.add('theme-transitioning');
+  const loadTheme = useCallback(async (name: string, skipAnimation = false) => {
+    // Prevent multiple simultaneous transitions
+    if (isTransitioning) return;
 
-      let loadedTheme: Theme;
+    const applyNewTheme = async () => {
+      try {
+        // Add transitioning class to disable transitions during theme change
+        document.body.classList.add('theme-transitioning');
 
-      if (window.electronAPI) {
-        loadedTheme = await window.electronAPI.loadTheme(name);
-      } else {
-        // Fallback for development without Electron
-        loadedTheme = defaultTheme;
+        let loadedTheme: Theme;
+
+        if (window.electronAPI) {
+          loadedTheme = await window.electronAPI.loadTheme(name);
+
+          // IMPORTANT: Reload settings from store to get the latest saved themeColorSettings
+          // This ensures we get the persisted customizations when switching themes
+          const settings = await window.electronAPI.getSettings();
+          const savedThemeColorSettings = settings.themeColorSettings || {};
+          const savedThemeFontSettings = settings.themeFontSettings || {};
+
+          // Update both state and refs with the latest from storage
+          setThemeColorSettings(savedThemeColorSettings);
+          setThemeFontSettings(savedThemeFontSettings);
+          themeColorSettingsRef.current = savedThemeColorSettings;
+          themeFontSettingsRef.current = savedThemeFontSettings;
+
+          // Get overrides for the loaded theme
+          const themeFonts = savedThemeFontSettings[loadedTheme.name] || {};
+          const themeColors = savedThemeColorSettings[loadedTheme.name] || {};
+
+          // Update refs for the new theme
+          fontOverridesRef.current = themeFonts;
+          colorOverridesRef.current = themeColors;
+
+          // Apply theme with its saved overrides
+          applyThemeToCSS(loadedTheme, themeColors, layoutOverridesRef.current, themeFonts);
+
+          // Apply window effect if specified (Windows only)
+          const effect = loadedTheme.windowEffect || 'none';
+          window.electronAPI.setWindowEffect(effect);
+
+          // Dispatch event for rounded corners logic
+          window.dispatchEvent(new CustomEvent('window-effect-changed', { detail: effect }));
+
+          // Save theme preference
+          await window.electronAPI.saveSettings({ ...settings, theme: name });
+        } else {
+          // Fallback for development without Electron
+          loadedTheme = defaultTheme;
+          applyThemeToCSS(defaultTheme, {}, {}, {});
+        }
+
+        setTheme(loadedTheme);
+        setThemeName(loadedTheme.name);
+        themeRef.current = loadedTheme;
+        themeNameRef.current = loadedTheme.name;
+
+        // Remove transitioning class after a short delay
+        setTimeout(() => {
+          document.body.classList.remove('theme-transitioning');
+        }, 50);
+      } catch (error) {
+        console.error('Failed to load theme:', error);
+        setTheme(defaultTheme);
+        applyThemeToCSS(defaultTheme, {}, {}, {});
       }
+    };
 
-      setTheme(loadedTheme);
-      setThemeName(loadedTheme.name);
-
-      // Use current ref values for overrides (always up-to-date)
-      applyThemeToCSS(loadedTheme, colorOverridesRef.current, layoutOverridesRef.current);
-
-      // Apply window effect if specified (Windows only)
-      if (window.electronAPI) {
-        const effect = loadedTheme.windowEffect || 'none';
-        window.electronAPI.setWindowEffect(effect);
-      }
-
-      // Save theme preference
-      if (window.electronAPI) {
-        const settings = await window.electronAPI.getSettings();
-        await window.electronAPI.saveSettings({ ...settings, theme: name });
-      }
-
-      // Remove transitioning class after a short delay
-      setTimeout(() => {
-        document.body.classList.remove('theme-transitioning');
-      }, 50);
-    } catch (error) {
-      console.error('Failed to load theme:', error);
-      setTheme(defaultTheme);
-      applyThemeToCSS(defaultTheme);
+    // Skip animation on initial load or if explicitly requested
+    if (skipAnimation || !themeRef.current) {
+      await applyNewTheme();
+      return;
     }
-  }, []);
+
+    // Play transition animation
+    setIsTransitioning(true);
+    await playThemeTransition(applyNewTheme);
+    setIsTransitioning(false);
+  }, [isTransitioning]);
 
   const updateLayoutOverride = useCallback(async (overrides: LayoutOverrides) => {
     const currentOverrides = layoutOverridesRef.current;
@@ -344,12 +515,15 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
     if (overrides.header) {
       newOverrides.header = { ...currentOverrides.header, ...overrides.header };
     }
+    if (overrides.library) {
+      newOverrides.library = { ...currentOverrides.library, ...overrides.library };
+    }
 
     setLayoutOverrides(newOverrides);
     layoutOverridesRef.current = newOverrides;
 
     if (themeRef.current) {
-      applyThemeToCSS(themeRef.current, colorOverridesRef.current, newOverrides);
+      applyThemeToCSS(themeRef.current, colorOverridesRef.current, newOverrides, fontOverridesRef.current);
     }
 
     // Save to settings
@@ -360,37 +534,69 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
   }, []);
 
   const updateColorOverride = useCallback(async (overrides: ColorOverrides) => {
-    const currentOverrides = colorOverridesRef.current;
-    const newOverrides = { ...currentOverrides };
+    const currentThemeName = themeNameRef.current;
+    const currentColors = themeColorSettingsRef.current[currentThemeName] || {};
+    const newColors = { ...currentColors };
 
     // Deep merge for nested properties
     if (overrides.background) {
-      newOverrides.background = { ...currentOverrides.background, ...overrides.background };
+      newColors.background = { ...currentColors.background, ...overrides.background };
     }
     if (overrides.text) {
-      newOverrides.text = { ...currentOverrides.text, ...overrides.text };
+      newColors.text = { ...currentColors.text, ...overrides.text };
     }
     if (overrides.accent) {
-      newOverrides.accent = { ...currentOverrides.accent, ...overrides.accent };
+      newColors.accent = { ...currentColors.accent, ...overrides.accent };
     }
     if (overrides.player) {
-      newOverrides.player = { ...currentOverrides.player, ...overrides.player };
+      newColors.player = { ...currentColors.player, ...overrides.player };
     }
     if (overrides.sidebar) {
-      newOverrides.sidebar = { ...currentOverrides.sidebar, ...overrides.sidebar };
+      newColors.sidebar = { ...currentColors.sidebar, ...overrides.sidebar };
     }
 
-    setColorOverrides(newOverrides);
-    colorOverridesRef.current = newOverrides;
+    const newThemeColorSettings = {
+      ...themeColorSettingsRef.current,
+      [currentThemeName]: newColors,
+    };
+
+    setThemeColorSettings(newThemeColorSettings);
+    themeColorSettingsRef.current = newThemeColorSettings;
+    colorOverridesRef.current = newColors;
 
     if (themeRef.current) {
-      applyThemeToCSS(themeRef.current, newOverrides, layoutOverridesRef.current);
+      applyThemeToCSS(themeRef.current, newColors, layoutOverridesRef.current, fontOverridesRef.current);
     }
 
     // Save to settings
     if (window.electronAPI) {
       const settings = await window.electronAPI.getSettings();
-      await window.electronAPI.saveSettings({ ...settings, colorOverrides: newOverrides });
+      await window.electronAPI.saveSettings({ ...settings, themeColorSettings: newThemeColorSettings });
+    }
+  }, []);
+
+  const updateFontOverride = useCallback(async (overrides: FontOverrides) => {
+    const currentThemeName = themeNameRef.current;
+    const currentFonts = themeFontSettingsRef.current[currentThemeName] || {};
+    const newFonts = { ...currentFonts, ...overrides };
+
+    const newThemeFontSettings = {
+      ...themeFontSettingsRef.current,
+      [currentThemeName]: newFonts,
+    };
+
+    setThemeFontSettings(newThemeFontSettings);
+    themeFontSettingsRef.current = newThemeFontSettings;
+    fontOverridesRef.current = newFonts;
+
+    if (themeRef.current) {
+      applyThemeToCSS(themeRef.current, colorOverridesRef.current, layoutOverridesRef.current, newFonts);
+    }
+
+    // Save to settings
+    if (window.electronAPI) {
+      const settings = await window.electronAPI.getSettings();
+      await window.electronAPI.saveSettings({ ...settings, themeFontSettings: newThemeFontSettings });
     }
   }, []);
 
@@ -399,7 +605,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
     layoutOverridesRef.current = {};
 
     if (themeRef.current) {
-      applyThemeToCSS(themeRef.current, colorOverridesRef.current, {});
+      applyThemeToCSS(themeRef.current, colorOverridesRef.current, {}, fontOverridesRef.current);
     }
     // Save empty overrides to settings
     if (window.electronAPI) {
@@ -409,16 +615,44 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
   }, []);
 
   const resetColorOverrides = useCallback(async () => {
-    setColorOverrides({});
+    const currentThemeName = themeNameRef.current;
+
+    // Remove current theme's color settings
+    const newThemeColorSettings = { ...themeColorSettingsRef.current };
+    delete newThemeColorSettings[currentThemeName];
+
+    setThemeColorSettings(newThemeColorSettings);
+    themeColorSettingsRef.current = newThemeColorSettings;
     colorOverridesRef.current = {};
 
     if (themeRef.current) {
-      applyThemeToCSS(themeRef.current, {}, layoutOverridesRef.current);
+      applyThemeToCSS(themeRef.current, {}, layoutOverridesRef.current, fontOverridesRef.current);
     }
-    // Save empty overrides to settings
+    // Save updated settings
     if (window.electronAPI) {
       const settings = await window.electronAPI.getSettings();
-      await window.electronAPI.saveSettings({ ...settings, colorOverrides: undefined });
+      await window.electronAPI.saveSettings({ ...settings, themeColorSettings: newThemeColorSettings });
+    }
+  }, []);
+
+  const resetFontOverrides = useCallback(async () => {
+    const currentThemeName = themeNameRef.current;
+
+    // Remove current theme's font settings
+    const newThemeFontSettings = { ...themeFontSettingsRef.current };
+    delete newThemeFontSettings[currentThemeName];
+
+    setThemeFontSettings(newThemeFontSettings);
+    themeFontSettingsRef.current = newThemeFontSettings;
+    fontOverridesRef.current = {};
+
+    if (themeRef.current) {
+      applyThemeToCSS(themeRef.current, colorOverridesRef.current, layoutOverridesRef.current, {});
+    }
+    // Save updated settings
+    if (window.electronAPI) {
+      const settings = await window.electronAPI.getSettings();
+      await window.electronAPI.saveSettings({ ...settings, themeFontSettings: newThemeFontSettings });
     }
   }, []);
 
@@ -444,30 +678,55 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
           // Load saved settings including overrides
           const settings = await window.electronAPI.getSettings();
           const savedLayoutOverrides = settings.layoutOverrides || {};
-          const savedColorOverrides = settings.colorOverrides || {};
+          const savedThemeFontSettings = settings.themeFontSettings || {};
+          const savedThemeColorSettings = settings.themeColorSettings || {};
 
           // Update both state and refs
           setLayoutOverrides(savedLayoutOverrides);
-          setColorOverrides(savedColorOverrides);
+          setThemeFontSettings(savedThemeFontSettings);
+          setThemeColorSettings(savedThemeColorSettings);
           layoutOverridesRef.current = savedLayoutOverrides;
-          colorOverridesRef.current = savedColorOverrides;
+          themeFontSettingsRef.current = savedThemeFontSettings;
+          themeColorSettingsRef.current = savedThemeColorSettings;
 
           // Load saved theme
           const loadedTheme = await window.electronAPI.loadTheme(settings.theme || 'Default Dark');
           setTheme(loadedTheme);
           setThemeName(loadedTheme.name);
           themeRef.current = loadedTheme;
+          themeNameRef.current = loadedTheme.name;
 
-          applyThemeToCSS(loadedTheme, savedColorOverrides, savedLayoutOverrides);
+          // Get overrides for this specific theme
+          const themeFonts = savedThemeFontSettings[loadedTheme.name] || {};
+          const themeColors = savedThemeColorSettings[loadedTheme.name] || {};
+          fontOverridesRef.current = themeFonts;
+          colorOverridesRef.current = themeColors;
+
+          applyThemeToCSS(loadedTheme, themeColors, savedLayoutOverrides, themeFonts);
 
           // Apply window effect if specified (Windows only)
           const effect = loadedTheme.windowEffect || 'none';
           window.electronAPI.setWindowEffect(effect);
+
+          // Dispatch event for rounded corners logic
+          window.dispatchEvent(new CustomEvent('window-effect-changed', { detail: effect }));
+
+          // Listen for reapply-window-effect to fix transparency on startup
+          window.electronAPI.onReapplyWindowEffect(() => {
+            const currentTheme = themeRef.current;
+            if (currentTheme?.windowEffect) {
+              // Re-apply the effect after a brief moment
+              window.electronAPI.setWindowEffect('none');
+              setTimeout(() => {
+                window.electronAPI.setWindowEffect(currentTheme.windowEffect || 'none');
+              }, 50);
+            }
+          });
         } else {
           // Fallback for development
           setTheme(defaultTheme);
           themeRef.current = defaultTheme;
-          applyThemeToCSS(defaultTheme);
+          applyThemeToCSS(defaultTheme, {}, {}, {});
           setAvailableThemes([
             { name: 'Default Dark', author: 'SkellBR', type: 'dark', category: 'official', isCustom: false },
             { name: 'Default Light', author: 'SkellBR', type: 'light', category: 'official', isCustom: false },
@@ -477,7 +736,7 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
         console.error('Theme initialization error:', error);
         setTheme(defaultTheme);
         themeRef.current = defaultTheme;
-        applyThemeToCSS(defaultTheme);
+        applyThemeToCSS(defaultTheme, {}, {}, {});
       }
     }
 
@@ -493,12 +752,17 @@ export function ThemeProvider({ children }: { children: ReactNode }): JSX.Elemen
     refreshThemes,
     layout: getMergedLayout(theme, layoutOverrides),
     colors: getMergedColors(theme, colorOverrides),
+    fonts: getMergedFonts(theme, fontOverrides),
     layoutOverrides,
     colorOverrides,
+    fontOverrides,
     updateLayoutOverride,
     updateColorOverride,
+    updateFontOverride,
     resetLayoutOverrides,
     resetColorOverrides,
+    resetFontOverrides,
+    isTransitioning,
   };
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

@@ -12,7 +12,7 @@ import {
   ChevronRight,
   LucideIcon
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../hooks/useTheme';
 import Logo from './Logo';
@@ -44,13 +44,53 @@ const navItems: NavItem[] = [
 ];
 
 export default function Sidebar({ horizontal = false, position = 'left' }: SidebarProps): JSX.Element {
-  const [collapsed, setCollapsed] = useState(false);
+  const [manualCollapsed, setManualCollapsed] = useState(false);
+  const [hoverExpanded, setHoverExpanded] = useState(false);
   const location = useLocation();
-  const { colorOverrides } = useTheme();
+  const { colorOverrides, layout, layoutOverrides } = useTheme();
   const borderClass = position === 'right' ? 'border-l' : 'border-r';
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Get auto behavior settings
+  const autoExpand = layoutOverrides?.sidebar?.autoExpand ?? false;
+  const autoCollapse = layoutOverrides?.sidebar?.autoCollapse ?? false;
+
+  // Determine if sidebar is visually collapsed
+  // - If hoverExpanded is true (mouse is over and autoExpand is on), show expanded
+  // - Otherwise, use the manual collapsed state
+  const collapsed = hoverExpanded ? false : manualCollapsed;
 
   // Use accent color for all icons when user has customized the accent color
   const useAccentColor = !!colorOverrides.accent?.primary;
+
+  const handleMouseEnter = useCallback(() => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    if (autoExpand && manualCollapsed) {
+      setHoverExpanded(true);
+    }
+  }, [autoExpand, manualCollapsed]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (autoCollapse && hoverExpanded) {
+      // Add a small delay before collapsing to prevent flickering
+      hoverTimeoutRef.current = setTimeout(() => {
+        setHoverExpanded(false);
+      }, 300);
+    } else if (autoCollapse && !manualCollapsed) {
+      // If autoCollapse is on and sidebar is expanded (not via hover), collapse it
+      hoverTimeoutRef.current = setTimeout(() => {
+        setManualCollapsed(true);
+      }, 300);
+    }
+  }, [autoCollapse, hoverExpanded, manualCollapsed]);
+
+  const handleToggleCollapse = useCallback(() => {
+    setManualCollapsed(!manualCollapsed);
+    setHoverExpanded(false);
+  }, [manualCollapsed]);
 
   // Group items by section
   const sections = navItems.reduce((acc, item) => {
@@ -104,6 +144,8 @@ export default function Sidebar({ horizontal = false, position = 'left' }: Sideb
         collapsed ? 'w-[var(--sidebar-collapsed-width)]' : 'w-[var(--sidebar-width)]'
       }`}
       style={sidebarGradientStyle}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Logo */}
       <div className={`flex items-center gap-3 p-4 border-b border-bg-tertiary ${collapsed ? 'justify-center' : ''}`}>
@@ -123,7 +165,7 @@ export default function Sidebar({ horizontal = false, position = 'left' }: Sideb
               className="overflow-hidden"
             >
               <h1 className="text-lg font-bold text-text-primary tracking-tight">SkllPlayer</h1>
-              <p className="text-xs text-text-muted">v0.1</p>
+              <p className="text-xs text-text-muted">v0.3</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -222,7 +264,7 @@ export default function Sidebar({ horizontal = false, position = 'left' }: Sideb
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={handleToggleCollapse}
           className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-text-secondary hover:bg-sidebar-hover hover:text-text-primary transition-colors"
           title={collapsed ? 'Expandir' : 'Recolher'}
         >

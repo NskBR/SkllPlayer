@@ -24,6 +24,19 @@ export default function FavoritesPage(): JSX.Element {
     loadFavorites();
   }, [loadFavorites]);
 
+  // Handle optimistic track updates
+  const handleTrackUpdate = useCallback((trackId: number, updates: Partial<Track>) => {
+    if (updates.isFavorite === false) {
+      // Remove from favorites list immediately
+      setTracks(prev => prev.filter(track => track.id !== trackId));
+    } else {
+      // Just update the track
+      setTracks(prev => prev.map(track =>
+        track.id === trackId ? { ...track, ...updates } : track
+      ));
+    }
+  }, []);
+
   const handlePlay = (_track: Track, index: number) => {
     setQueue(tracks, index);
   };
@@ -66,7 +79,7 @@ export default function FavoritesPage(): JSX.Element {
           tracks={tracks}
           onPlay={handlePlay}
           showIndex
-          onTrackUpdate={loadFavorites}
+          onTrackUpdate={handleTrackUpdate}
         />
       )}
     </div>

@@ -1,10 +1,10 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, protocol, Tray, Menu, dialog, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, protocol, Tray, Menu, dialog, nativeImage, session } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import { setupIpcHandlers } from './ipc';
 import { createSplashWindow } from './splash';
 import { initDiscordRPC, destroyDiscordRPC } from './discord-rpc';
-import { initWebSocketServer, destroyWebSocketServer } from './websocket-server';
+import { isUBlockInstalled, installUBlock, getUBlockPath } from './downloader';
 
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
@@ -107,14 +107,24 @@ function registerGlobalShortcuts(): void {
     mainWindow?.webContents.send('media-key', 'volume-mute');
   });
 
-  // DevTools shortcut
-  globalShortcut.register('F12', () => {
-    mainWindow?.webContents.toggleDevTools();
-  });
+  // Note: F5 and F12 are handled locally in setupLocalShortcuts() to avoid
+  // triggering when app is not focused
+}
 
-  // Reload shortcut
-  globalShortcut.register('F5', () => {
-    mainWindow?.webContents.reload();
+function setupLocalShortcuts(): void {
+  if (!mainWindow) return;
+
+  // Handle F5 (reload) and F12 (devtools) only when window is focused
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type === 'keyDown') {
+      if (input.key === 'F5') {
+        mainWindow?.webContents.reload();
+        event.preventDefault();
+      } else if (input.key === 'F12') {
+        mainWindow?.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    }
   });
 }
 
@@ -154,7 +164,7 @@ function saveCloseBehavior(behavior: 'ask' | 'tray' | 'close'): void {
 
 // Create system tray
 function createTray(): void {
-  const iconPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+  const iconPath = path.join(__dirname, '../../assets/icons/icon.png');
   let trayIcon: Electron.NativeImage;
 
   try {
@@ -264,9 +274,7 @@ async function initialize(): Promise<void> {
   // Initialize Discord Rich Presence
   initDiscordRPC();
 
-  // Initialize WebSocket server for Vencord plugin
-  initWebSocketServer();
-
+  
   // Create system tray
   createTray();
 
@@ -287,8 +295,11 @@ async function initialize(): Promise<void> {
   // Setup IPC handlers (after window is created so we can pass it for download progress)
   setupIpcHandlers(mainWindow);
 
-  // Register global shortcuts
+  // Register global shortcuts (media keys)
   registerGlobalShortcuts();
+
+  // Register local shortcuts (F5, F12 - only when focused)
+  setupLocalShortcuts();
 
   // Function to close splash and show main window
   const showMainWindow = () => {
@@ -302,14 +313,46 @@ async function initialize(): Promise<void> {
     }
   };
 
+  // Track window state changes to adjust glass effect
+  const sendWindowState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const isMaximized = mainWindow.isMaximized();
+      const isFullScreen = mainWindow.isFullScreen();
+      mainWindow.webContents.send('window-state-changed', { isMaximized, isFullScreen });
+    }
+  };
+
+  mainWindow?.on('maximize', sendWindowState);
+  mainWindow?.on('unmaximize', sendWindowState);
+  mainWindow?.on('enter-full-screen', sendWindowState);
+  mainWindow?.on('leave-full-screen', sendWindowState);
+  mainWindow?.on('resize', sendWindowState);
+
   // Show main window when ready (minimum 1.5s splash for smooth UX)
   let isReady = false;
   let minTimeElapsed = false;
+  let hasShownMainWindow = false;
+
+  const safeShowMainWindow = () => {
+    if (!hasShownMainWindow) {
+      hasShownMainWindow = true;
+      showMainWindow();
+
+      // Fix: Re-apply window effect after showing window (Windows DWM bug workaround)
+      // The acrylic/mica effect doesn't render correctly on initial window creation
+      if (process.platform === 'win32' && mainWindow) {
+        setTimeout(() => {
+          // Request the renderer to re-apply the theme's window effect
+          mainWindow?.webContents.send('reapply-window-effect');
+        }, 100);
+      }
+    }
+  };
 
   mainWindow?.webContents.once('did-finish-load', () => {
     isReady = true;
     if (minTimeElapsed) {
-      showMainWindow();
+      safeShowMainWindow();
     }
   });
 
@@ -317,13 +360,13 @@ async function initialize(): Promise<void> {
   setTimeout(() => {
     minTimeElapsed = true;
     if (isReady) {
-      showMainWindow();
+      safeShowMainWindow();
     }
   }, 1500);
 
   // Fallback: show after 5s if something goes wrong
   setTimeout(() => {
-    showMainWindow();
+    safeShowMainWindow();
   }, 5000);
 }
 
@@ -345,9 +388,7 @@ app.on('quit', () => {
   // Destroy Discord RPC
   destroyDiscordRPC();
 
-  // Destroy WebSocket server
-  destroyWebSocketServer();
-
+  
   // Destroy tray
   if (tray) {
     tray.destroy();
@@ -407,4 +448,132 @@ ipcMain.handle('get-close-behavior', () => {
 
 ipcMain.on('set-close-behavior', (_event, behavior: 'ask' | 'tray' | 'close') => {
   saveCloseBehavior(behavior);
+});
+
+// YouTube Preview Window
+let youtubePreviewWindow: BrowserWindow | null = null;
+let uBlockLoaded = false;
+
+// Create a dedicated session for YouTube with uBlock
+let youtubeSession: Electron.Session | null = null;
+
+// Load uBlock Origin extension
+async function loadUBlockExtension(): Promise<Electron.Session> {
+  if (youtubeSession && uBlockLoaded) return youtubeSession;
+
+  // Create a persistent session for YouTube
+  youtubeSession = session.fromPartition('persist:youtube');
+
+  try {
+    // Check if uBlock is installed, if not download it
+    if (!isUBlockInstalled()) {
+      console.log('[SkllPlayer] uBlock Origin not found, downloading...');
+      await installUBlock();
+    }
+
+    const uBlockPath = getUBlockPath();
+    console.log('[SkllPlayer] Loading uBlock from:', uBlockPath);
+
+    if (fs.existsSync(uBlockPath)) {
+      const ext = await youtubeSession.loadExtension(uBlockPath, { allowFileAccess: true });
+      uBlockLoaded = true;
+      console.log('[SkllPlayer] uBlock Origin loaded successfully:', ext.name);
+    } else {
+      console.log('[SkllPlayer] uBlock Origin not found at:', uBlockPath);
+    }
+  } catch (error) {
+    console.error('[SkllPlayer] Failed to load uBlock Origin:', error);
+  }
+
+  return youtubeSession;
+}
+
+ipcMain.on('open-youtube-preview', async (_event, videoId: string, title: string) => {
+  // Close existing preview window if open
+  if (youtubePreviewWindow && !youtubePreviewWindow.isDestroyed()) {
+    youtubePreviewWindow.close();
+  }
+
+  // Load uBlock Origin and get the session
+  const ytSession = await loadUBlockExtension();
+
+  youtubePreviewWindow = new BrowserWindow({
+    width: 1100,
+    height: 700,
+    parent: mainWindow || undefined,
+    modal: false,
+    frame: true, // Native titlebar with close button
+    resizable: true,
+    title: `Preview: ${title}`,
+    backgroundColor: '#0f0f0f',
+    autoHideMenuBar: true, // Hide menu bar
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload-youtube.js'),
+      session: ytSession, // Use session with uBlock loaded
+    },
+    icon: path.join(__dirname, '../../assets/icons/icon.png'),
+  });
+
+  // Load YouTube directly - uBlock will block ads
+  const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  youtubePreviewWindow.loadURL(youtubeUrl);
+
+  // Inject CSS for dark theme and clean look
+  youtubePreviewWindow.webContents.on('did-finish-load', () => {
+    youtubePreviewWindow?.webContents.insertCSS(`
+      /* Force dark theme */
+      html, body, ytd-app {
+        background-color: #0f0f0f !important;
+      }
+
+      /* Hide everything except video player */
+      #secondary, #comments, #related, ytd-watch-metadata,
+      #above-the-fold, #below, #masthead-container, ytd-masthead,
+      ytd-mini-guide-renderer {
+        display: none !important;
+      }
+
+      /* Make video player take full space */
+      #columns { max-width: 100% !important; }
+      ytd-watch-flexy[theater] #player-theater-container.ytd-watch-flexy {
+        max-height: 100vh !important;
+        min-height: 100vh !important;
+      }
+    `);
+
+    // Enable theater mode
+    setTimeout(() => {
+      youtubePreviewWindow?.webContents.executeJavaScript(`
+        (function() {
+          var tb = document.querySelector('.ytp-size-button');
+          if (tb && !document.querySelector('ytd-watch-flexy[theater]')) {
+            tb.click();
+          }
+        })();
+      `);
+    }, 1500);
+  });
+
+  youtubePreviewWindow.on('closed', () => {
+    youtubePreviewWindow = null;
+  });
+});
+
+// YouTube preview window controls
+ipcMain.on('youtube-preview-minimize', () => {
+  youtubePreviewWindow?.minimize();
+});
+
+ipcMain.on('youtube-preview-maximize', () => {
+  if (youtubePreviewWindow?.isMaximized()) {
+    youtubePreviewWindow?.unmaximize();
+  } else {
+    youtubePreviewWindow?.maximize();
+  }
+});
+
+ipcMain.on('youtube-preview-close', () => {
+  youtubePreviewWindow?.close();
 });

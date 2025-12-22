@@ -1,6 +1,6 @@
 # SkllPlayer - Progresso do Desenvolvimento
 
-## Status Atual: Em Desenvolvimento (v0.1.0)
+## Status Atual: Em Desenvolvimento (v0.3.0)
 
 ---
 
@@ -19,7 +19,10 @@
 - [x] **Sidebar recolhível** (botão para expandir/recolher)
 - [x] **Layout responsivo** com suporte a diferentes posições (configurável via tema)
 - [x] **Animações suaves** com Framer Motion
-- [x] **Logo animada** - Componente com barras de áudio animadas
+- [x] **Logo Symbol** - Imagem symbol.png na sidebar e loading
+- [x] **Novo ícone do app** - Símbolo "S" com gradiente azul (symbol.png)
+- [x] **Bordas arredondadas** - 16px em modo janela, quadrado em maximizado/glass
+- [x] **Animação de troca de tema** - Loading screen profissional com fade in/out
 
 ### Sistema de Temas
 - [x] Engine de temas que lê arquivos JSON
@@ -38,6 +41,8 @@
 - [x] **Botão de atualizar temas** - Recarrega lista sem reiniciar o app
 - [x] **Efeitos de janela** - Suporte a Mica, Acrylic, Tabbed (Windows 10/11)
 - [x] **Gerador de paleta automático** - Escolhe 1 cor base e gera todas as outras
+- [x] **Salvar customizações no tema** - Botão para persistir alterações no JSON
+- [x] **Tema Glass Light** - Acrylic com background transparente e áreas opacas
 
 ### Páginas Criadas
 - [x] **Home** - Tela inicial com estatísticas, favoritas e atalhos rápidos
@@ -58,6 +63,7 @@
 - [x] Extração de thumbnails/capas dos álbuns
 - [x] Armazenamento persistente das músicas (electron-store)
 - [x] Preservação de play counts ao re-escanear
+- [x] **Análise de pasta antes de escanear** - Avisa sobre pastas muito grandes
 
 ### Player de Música
 - [x] **Reprodução de áudio funciona** - Protocolo media:// customizado
@@ -136,13 +142,13 @@
 - [x] **Thumbnails dos resultados** - CSP atualizada para permitir imagens do YouTube
 - [x] **Botão de preview** - Abre o vídeo no YouTube antes de baixar
 - [x] **Barra de busca corrigida** - Ícone movido para o botão à direita
+- [x] **Thumbnails nas músicas baixadas** - Conversão para JPG via --convert-thumbnails
+- [x] **Histórico unificado** - Downloads ativos e histórico na mesma visualização
 
 ### Discord Rich Presence
-- [x] **Integração com discord-rpc** - Mostra música atual no Discord
-- [x] **WebSocket Server** - Porta 6463 para comunicação com Vencord
-- [x] **Plugin Vencord** - Permite mostrar "Ouvindo" sem Game Activity
-- [x] **Informações exibidas** - Título, artista, progresso da música
+- [x] **Integração com discord-rpc** - Mostra status no Discord
 - [x] **Configurável** - Toggle para ativar/desativar nas configurações
+- [x] **Modo Desenvolvimento** - Mostra "Em Desenvolvimento" como status
 
 ### System Tray
 - [x] **Ícone na bandeja** - Minimiza para tray ao invés de fechar
@@ -164,19 +170,51 @@
   - Sobre (versão, créditos, links)
 
 ### Splash Screen
-- [x] **Logo centralizada** - Usa imagem do ícone (Icone.png)
+- [x] **Logo centralizada** - Usa imagem do símbolo (symbol.png)
 - [x] **Animação de loading** - Barras de áudio animadas
 - [x] **Tempo mínimo** - 1.5s para UX suave
 - [x] **Fallback** - Fecha após 5s se algo travar
+- [x] **Versão atualizada** - Mostra v0.2
+
+### Build & Distribuição
+- [x] **electron-builder configurado** - Build para Windows
+- [x] **Ícone personalizado** - symbol.png convertido para .ico
+- [x] **Versão portable** - SkllPlayer-Portable-0.2.0.exe
+- [x] **Versão unpacked** - Pasta win-unpacked com executável
+- [x] **Script de ícone** - scripts/apply-icon.js para aplicar ícone pós-build
 
 ---
 
 ## Concluído Recentemente
 
+### Sessão 21/12/2024 (Parte 2)
+- [x] **Animação de troca de tema** - Tela de loading profissional com fade in/out
+  - Logo Symbol centralizada com borda gradiente animada
+  - Dots pulsando e barra de progresso deslizante
+  - Partículas flutuantes no fundo
+  - Fade in suave com scale ao aparecer
+  - Fade out suave com scale ao sair
+- [x] **Logo Symbol na Sidebar** - Substituído símbolo texto torto (₪) pela imagem symbol.png
+- [x] **Salvar tema no JSON** - Botão para persistir customizações diretamente no arquivo do tema
+- [x] **Notificação "Salvo!"** - Feedback inline ao salvar tema (substituiu alert)
+- [x] **Sliders leem do tema salvo** - Transparência e escuridão mostram valores corretos após salvar
+- [x] **Bordas arredondadas** - 16px de border-radius quando em modo janela
+- [x] **Bordas quadradas para Glass** - Desabilita bordas arredondadas em temas com efeito acrylic/mica
+- [x] **Tema Glass Light melhorado** - Background transparente, áreas de conteúdo opacas
+
+### Sessão 21/12/2024 (Parte 1)
+- [x] **Novo ícone do app** - Símbolo "S" com gradiente azul
+- [x] **Splash screen atualizado** - Usa symbol.png e mostra v0.2
+- [x] **Versão 0.2.0** - Atualizado em package.json e sidebar
+- [x] **Build configurado** - electron-builder + rcedit para ícones
+- [x] **Discord RPC simplificado** - Removido WebSocket/Vencord, usando discord-rpc padrão
+- [x] **Download thumbnails** - Corrigido com --convert-thumbnails jpg
+- [x] **Histórico de downloads unificado** - Tudo na mesma aba "Ativos"
+- [x] **Análise de pasta** - Avisa antes de escanear pastas grandes
+- [x] **Bug do tray corrigido** - App não reabre mais sozinho
+
 ### Sessão 20/12/2024
 - [x] **Discord Rich Presence** - Integração completa com Discord
-- [x] **WebSocket Server** - Para plugin Vencord
-- [x] **Plugin Vencord** - skllPlayer plugin criado
 - [x] **System Tray** - Minimizar para bandeja com menu
 - [x] **Close Behavior Dialog** - Pergunta ao fechar pela primeira vez
 - [x] **Settings Reorganizado** - Menu lateral com categorias
@@ -197,6 +235,8 @@
 
 ### Efeitos de Áudio Avançados
 - [ ] Crossfade entre músicas
+- [ ] Gapless playback
+- [ ] Normalização de volume
 
 ### Layout Customizável
 - [ ] Layouts pré-definidos (Padrão, Compacto, Expandido, Minimalista)
@@ -207,11 +247,10 @@
 - [ ] Mini Player (janela flutuante pequena)
 - [ ] "Now Playing" View (tela com artwork grande)
 
-### Build & Distribuição
-- [ ] Configurar electron-builder
-- [ ] Usar logo como ícone do executável (.ico)
-- [ ] Gerar instalador Windows
-- [ ] Versão portable
+### Discord Rich Presence (Melhorias Futuras)
+- [ ] Mostrar música atual (quando app não estiver em desenvolvimento)
+- [ ] Barra de progresso (limitação do Discord - só Spotify tem)
+- [ ] Tipo "Ouvindo" ao invés de "Jogando" (limitação do Discord RPC)
 
 ---
 
@@ -226,7 +265,6 @@ SkllPlayer/
 │   │   ├── ipc.ts               # Handlers (músicas, playlists, temas)
 │   │   ├── splash.ts            # Splash screen com logo
 │   │   ├── discord-rpc.ts       # Discord Rich Presence
-│   │   ├── websocket-server.ts  # WebSocket para Vencord
 │   │   ├── downloader.ts        # yt-dlp + ffmpeg integration
 │   │   └── types/
 │   │       └── discord-rpc.d.ts # Tipos do discord-rpc
@@ -266,13 +304,27 @@ SkllPlayer/
 │   ├── glass-mica.theme.json
 │   └── README.md
 │
+├── assets/
+│   └── icons/
+│       ├── icon.png             # Ícone do app (symbol)
+│       └── icon.ico             # Ícone para Windows
+│
 ├── Public/
 │   ├── Icon/
-│   │   └── Icone.png
+│   │   ├── Icone.png            # Logo completa
+│   │   └── symbol.png           # Símbolo "S"
 │   └── Screenshot/
 │       ├── Faixas.png
 │       ├── equalizer.png
 │       └── options.png
+│
+├── scripts/
+│   └── apply-icon.js            # Aplica ícone pós-build
+│
+├── release/                     # Builds gerados
+│   ├── win-unpacked/
+│   │   └── SkllPlayer.exe
+│   └── SkllPlayer-Portable-0.2.0.exe
 │
 ├── start.bat              # Inicia o app
 ├── start-dev.bat          # Inicia com DevTools
@@ -303,6 +355,11 @@ npm run dev:renderer   # Terminal 1 - Inicia Vite
 npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 ```
 
+### Build para Distribuição
+```bash
+npm run package:portable   # Gera versão portable + unpacked
+```
+
 ---
 
 ## Problemas Conhecidos
@@ -310,7 +367,7 @@ npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 | Problema | Severidade | Status |
 |----------|------------|--------|
 | CMD aparece ao iniciar (dev mode) | Baixa | Esperado em dev |
-| Discord RPC requer Game Activity | Média | Usar plugin Vencord |
+| Discord RPC mostra "Jogando" | Baixa | Limitação do Discord |
 | Erros de cache do Windows no console | Baixa | Ignorável |
 
 ---
@@ -329,7 +386,6 @@ npm run build:main && npx electron .   # Terminal 2 - Inicia Electron
 - **music-metadata** 7.x - Extração de metadados
 - **electron-store** 8.x - Armazenamento local
 - **discord-rpc** - Rich Presence
-- **ws** - WebSocket server
 - **yt-dlp** - Download do YouTube
 - **Lucide React** - Ícones
 - **@tanstack/react-virtual** - Virtualização de listas

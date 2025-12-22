@@ -18,6 +18,8 @@ export interface Playlist {
   name: string;
   createdAt: string;
   trackCount: number;
+  coverImage: string | null; // Custom cover image (base64 or URL)
+  firstTrackThumbnail: string | null; // First track's thumbnail as fallback
 }
 
 export interface Stats {
@@ -34,6 +36,7 @@ export interface ThemeInfo {
   category: 'official' | 'community';
   windowEffect?: WindowEffect;
   isCustom: boolean;
+  readonly?: boolean;
 }
 
 export interface ThemeGradient {
@@ -94,6 +97,10 @@ export interface LayoutOverrides {
     position?: 'left' | 'right' | 'top';
     width?: string;
     collapsedWidth?: string;
+    visible?: boolean;
+    collapsed?: boolean;
+    autoCollapse?: boolean;
+    autoExpand?: boolean;
   };
   player?: {
     position?: 'bottom' | 'top';
@@ -102,6 +109,9 @@ export interface LayoutOverrides {
   header?: {
     visible?: boolean;
     height?: string;
+  };
+  library?: {
+    view?: 'grid' | 'list' | 'columns';
   };
 }
 
@@ -143,6 +153,21 @@ export interface ColorOverrides {
   };
 }
 
+export interface FontOverrides {
+  primary?: string;
+  secondary?: string;
+}
+
+// Per-theme font settings
+export interface ThemeFontSettings {
+  [themeName: string]: FontOverrides;
+}
+
+// Per-theme color settings
+export interface ThemeColorSettings {
+  [themeName: string]: ColorOverrides;
+}
+
 export interface Settings {
   musicFolder: string;
   theme: string;
@@ -151,7 +176,8 @@ export interface Settings {
   crossfadeDuration: number;
   normalizationEnabled: boolean;
   layoutOverrides?: LayoutOverrides;
-  colorOverrides?: ColorOverrides;
+  themeFontSettings?: ThemeFontSettings;
+  themeColorSettings?: ThemeColorSettings;
   equalizer: {
     '60': number;
     '230': number;
@@ -180,6 +206,13 @@ export interface DownloadProgress {
   eta: string;
 }
 
+export interface FolderAnalysis {
+  totalFiles: number;
+  audioFiles: number;
+  totalSize: number;
+  totalSizeGB: string;
+}
+
 export interface ElectronAPI {
   // Window controls
   minimizeWindow: () => void;
@@ -191,8 +224,12 @@ export interface ElectronAPI {
   // Media keys
   onMediaKey: (callback: (key: string) => void) => void;
 
+  // Window state
+  onWindowStateChanged: (callback: (state: { isMaximized: boolean; isFullScreen: boolean }) => void) => void;
+
   // File system
   selectMusicFolder: () => Promise<string | null>;
+  analyzeFolder: (folderPath: string) => Promise<FolderAnalysis>;
   scanMusicFolder: (folderPath: string) => Promise<string[]>;
   getMusicMetadata: (filePath: string) => Promise<{
     title: string;
@@ -239,6 +276,8 @@ export interface ElectronAPI {
   addToPlaylist: (playlistId: number, trackId: number) => Promise<void>;
   removeFromPlaylist: (playlistId: number, trackId: number) => Promise<void>;
   getPlaylistTracks: (playlistId: number) => Promise<Track[]>;
+  setPlaylistCover: (playlistId: number, coverImage: string | null) => Promise<void>;
+  selectPlaylistCover: (playlistId: number) => Promise<string | null>;
 
   // Statistics
   getStats: () => Promise<Stats>;
@@ -252,6 +291,8 @@ export interface ElectronAPI {
   getThemes: () => Promise<ThemeInfo[]>;
   loadTheme: (themeName: string) => Promise<Theme>;
   saveCustomTheme: (theme: Theme) => Promise<void>;
+  updateTheme: (themeName: string, updates: Partial<Theme>) => Promise<Theme>;
+  openThemesFolder: () => Promise<void>;
 
   // Settings
   getSettings: () => Promise<Settings>;
@@ -264,6 +305,10 @@ export interface ElectronAPI {
   cancelDownload: (id: string) => Promise<void>;
   getYtDlpStatus: () => Promise<YtDlpStatus>;
   installYtDlp: () => Promise<boolean>;
+
+  // uBlock Origin
+  getUBlockStatus: () => Promise<UBlockStatus>;
+  installUBlock: () => Promise<boolean>;
 
   // Close behavior
   getCloseBehavior: () => Promise<'ask' | 'tray' | 'close'>;
@@ -279,6 +324,12 @@ export interface ElectronAPI {
     isPlaying: boolean;
   } | null) => void;
   clearDiscordPresence: () => void;
+
+  // YouTube Preview
+  openYouTubePreview: (videoId: string, title: string) => void;
+
+  // Window effect re-apply listener
+  onReapplyWindowEffect: (callback: () => void) => void;
 }
 
 export interface YtDlpStatus {
@@ -287,6 +338,11 @@ export interface YtDlpStatus {
   path: string;
   ffmpegInstalled: boolean;
   ffmpegPath: string;
+}
+
+export interface UBlockStatus {
+  installed: boolean;
+  path: string;
 }
 
 declare global {

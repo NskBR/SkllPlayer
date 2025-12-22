@@ -14,8 +14,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('media-key', (_event, key) => callback(key));
   },
 
+  // Window state listener (for glass effect adjustments)
+  onWindowStateChanged: (callback: (state: { isMaximized: boolean; isFullScreen: boolean }) => void) => {
+    ipcRenderer.on('window-state-changed', (_event, state) => callback(state));
+  },
+
   // File system
   selectMusicFolder: () => ipcRenderer.invoke('select-music-folder'),
+  analyzeFolder: (folderPath: string) => ipcRenderer.invoke('analyze-folder', folderPath),
   scanMusicFolder: (folderPath: string) => ipcRenderer.invoke('scan-music-folder', folderPath),
   getMusicMetadata: (filePath: string) => ipcRenderer.invoke('get-music-metadata', filePath),
 
@@ -36,6 +42,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   addToPlaylist: (playlistId: number, trackId: number) => ipcRenderer.invoke('db-add-to-playlist', playlistId, trackId),
   removeFromPlaylist: (playlistId: number, trackId: number) => ipcRenderer.invoke('db-remove-from-playlist', playlistId, trackId),
   getPlaylistTracks: (playlistId: number) => ipcRenderer.invoke('db-get-playlist-tracks', playlistId),
+  setPlaylistCover: (playlistId: number, coverImage: string | null) => ipcRenderer.invoke('db-set-playlist-cover', playlistId, coverImage),
+  selectPlaylistCover: (playlistId: number) => ipcRenderer.invoke('db-select-playlist-cover', playlistId),
 
   // Statistics
   getStats: () => ipcRenderer.invoke('db-get-stats'),
@@ -49,6 +57,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getThemes: () => ipcRenderer.invoke('get-themes'),
   loadTheme: (themeName: string) => ipcRenderer.invoke('load-theme', themeName),
   saveCustomTheme: (theme: Record<string, unknown>) => ipcRenderer.invoke('save-custom-theme', theme),
+  updateTheme: (themeName: string, updates: Record<string, unknown>) => ipcRenderer.invoke('update-theme', themeName, updates),
+  openThemesFolder: () => ipcRenderer.invoke('open-themes-folder'),
 
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),
@@ -76,6 +86,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelDownload: (id: string) => ipcRenderer.invoke('cancel-download', id),
   getYtDlpStatus: () => ipcRenderer.invoke('get-ytdlp-status'),
   installYtDlp: () => ipcRenderer.invoke('install-ytdlp'),
+
+  // uBlock Origin
+  getUBlockStatus: () => ipcRenderer.invoke('get-ublock-status'),
+  installUBlock: () => ipcRenderer.invoke('install-ublock'),
 
   // Download history
   getDownloadHistory: () => ipcRenderer.invoke('get-download-history'),
@@ -106,16 +120,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   } | null) => ipcRenderer.send('discord-rpc-update', track),
   clearDiscordPresence: () => ipcRenderer.send('discord-rpc-clear'),
 
-  // WebSocket for Vencord plugin
-  updateWebSocketTrack: (track: {
-    title: string;
-    artist: string;
-    album?: string;
-    thumbnail: string | null;
-    duration: number;
-    currentTime: number;
-    isPlaying: boolean;
-  } | null) => ipcRenderer.send('ws-track-update', track),
+  // YouTube Preview
+  openYouTubePreview: (videoId: string, title: string) => ipcRenderer.send('open-youtube-preview', videoId, title),
+
+  // Window effect re-apply listener (for fixing transparency on startup)
+  onReapplyWindowEffect: (callback: () => void) => {
+    ipcRenderer.on('reapply-window-effect', () => callback());
+  },
 });
 
 // Type definitions for the exposed API
@@ -126,6 +137,7 @@ export interface ElectronAPI {
   isMaximized: () => Promise<boolean>;
   onMediaKey: (callback: (key: string) => void) => void;
   selectMusicFolder: () => Promise<string | null>;
+  analyzeFolder: (folderPath: string) => Promise<FolderAnalysis>;
   scanMusicFolder: (folderPath: string) => Promise<void>;
   getMusicMetadata: (filePath: string) => Promise<TrackMetadata>;
   getTracks: () => Promise<Track[]>;
@@ -151,6 +163,7 @@ export interface ElectronAPI {
   getThemes: () => Promise<ThemeInfo[]>;
   loadTheme: (themeName: string) => Promise<Theme>;
   saveCustomTheme: (theme: Theme) => Promise<void>;
+  updateTheme: (themeName: string, updates: Partial<Theme>) => Promise<Theme>;
   getSettings: () => Promise<Settings>;
   saveSettings: (settings: Settings) => Promise<void>;
   savePlayerState: (state: PlayerState) => Promise<void>;
@@ -174,6 +187,13 @@ interface YtDlpStatus {
   path: string;
   ffmpegInstalled: boolean;
   ffmpegPath: string;
+}
+
+interface FolderAnalysis {
+  totalFiles: number;
+  audioFiles: number;
+  totalSize: number;
+  totalSizeGB: string;
 }
 
 interface TrackMetadata {

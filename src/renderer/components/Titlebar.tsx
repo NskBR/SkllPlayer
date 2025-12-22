@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Minus, Square, X, Copy } from 'lucide-react';
+import { Minus, Square, X, Copy, Settings } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 export default function Titlebar(): JSX.Element {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [isMaximized, setIsMaximized] = useState(false);
 
   useEffect(() => {
@@ -47,6 +50,20 @@ export default function Titlebar(): JSX.Element {
 
       {/* Window controls */}
       <div className="flex items-center h-full relative z-10">
+        {/* Settings button */}
+        <button
+          onClick={() => navigate('/settings')}
+          className={`h-full px-3 flex items-center justify-center hover:bg-bg-tertiary transition-colors no-drag ${
+            location.pathname === '/settings' ? 'text-accent-primary' : 'text-text-secondary'
+          }`}
+          title="Configurações"
+        >
+          <Settings className="w-4 h-4" />
+        </button>
+
+        {/* Separator */}
+        <div className="w-px h-4 bg-bg-tertiary mx-1" />
+
         {/* Minimize */}
         <button
           onClick={handleMinimize}

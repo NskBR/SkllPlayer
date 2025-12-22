@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "light",
   "category": "official",
+  "readonly": true,
 
   "colors": {
     "background": {
