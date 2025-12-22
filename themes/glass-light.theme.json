@@ -1,0 +1,91 @@
+{
+  "name": "Glass Light",
+  "author": "SkellBR",
+  "version": "1.3.0",
+  "type": "light",
+  "category": "official",
+  "readonly": true,
+  "windowEffect": "acrylic",
+
+  "colors": {
+    "background": {
+      "primary": "rgba(255, 255, 255, 0.4)",
+      "secondary": "rgba(255, 255, 255, 0.85)",
+      "tertiary": "rgba(255, 255, 255, 0.92)"
+    },
+    "text": {
+      "primary": "#0f172a",
+      "secondary": "#334155",
+      "muted": "#64748b"
+    },
+    "accent": {
+      "primary": "#2563eb",
+      "hover": "#1d4ed8",
+      "active": "#1e40af"
+    },
+    "player": {
+      "progress": "#2563eb",
+      "progressBackground": "rgba(148, 163, 184, 0.4)",
+      "controls": "#0f172a"
+    },
+    "sidebar": {
+      "background": "rgba(255, 255, 255, 0.88)",
+      "itemHover": "rgba(226, 232, 240, 0.8)",
+      "itemActive": "#2563eb"
+    }
+  },
+
+  "fonts": {
+    "primary": "Segoe UI, Inter, system-ui, sans-serif",
+    "secondary": "Cascadia Code, JetBrains Mono, monospace",
+    "sizes": {
+      "small": "12px",
+      "normal": "14px",
+      "medium": "16px",
+      "large": "20px",
+      "title": "28px"
+    }
+  },
+
+  "layout": {
+    "sidebar": {
+      "position": "left",
+      "width": "240px",
+      "collapsedWidth": "70px"
+    },
+    "player": {
+      "position": "bottom",
+      "height": "90px"
+    },
+    "header": {
+      "visible": true,
+      "height": "40px"
+    }
+  },
+
+  "components": {
+    "borderRadius": "12px",
+    "trackItem": {
+      "height": "60px",
+      "thumbnailSize": "48px",
+      "showDuration": true,
+      "showArtist": true
+    },
+    "buttons": {
+      "borderRadius": "10px",
+      "style": "filled"
+    },
+    "scrollbar": {
+      "width": "6px",
+      "thumbColor": "rgba(100, 116, 139, 0.5)",
+      "trackColor": "transparent"
+    }
+  },
+
+  "effects": {
+    "blur": true,
+    "animations": true,
+    "transitionSpeed": "200ms",
+    "hoverScale": 1.02
+  }
+}

@@ -13,9 +13,12 @@ import {
   ListMusic,
   Heart,
   X,
-  Music
+  Music,
+  Settings
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { usePlayerStore, Track } from '../stores/playerStore';
+import { useTheme } from '../hooks/useTheme';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function formatTime(seconds: number): string {
@@ -32,6 +35,8 @@ function formatDuration(seconds: number): string {
 }
 
 export default function Player(): JSX.Element {
+  const navigate = useNavigate();
+  const { layout } = useTheme();
   const {
     currentTrack,
     isPlaying,
@@ -56,6 +61,11 @@ export default function Player(): JSX.Element {
     removeFromQueue,
   } = usePlayerStore();
 
+  // Check if sidebar and header are both hidden
+  const sidebarVisible = layout?.sidebar?.visible ?? true;
+  const headerVisible = layout?.header?.visible ?? true;
+  const showSettingsButton = !sidebarVisible && !headerVisible;
+
   // Progress bar state
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [localProgress, setLocalProgress] = useState(0);
@@ -77,7 +87,7 @@ export default function Player(): JSX.Element {
     setIsFavorite(currentTrack?.isFavorite || false);
   }, [currentTrack]);
 
-  // Update Discord Rich Presence and WebSocket for Vencord
+  // Update Discord Rich Presence
   useEffect(() => {
     const updatePresence = async () => {
       if (!window.electronAPI) return;
@@ -88,7 +98,6 @@ export default function Player(): JSX.Element {
 
       if (!isEnabled) {
         window.electronAPI.clearDiscordPresence();
-        window.electronAPI.updateWebSocketTrack(null);
         return;
       }
 
@@ -103,10 +112,8 @@ export default function Player(): JSX.Element {
           isPlaying: isPlaying,
         };
         window.electronAPI.updateDiscordPresence(trackData);
-        window.electronAPI.updateWebSocketTrack(trackData);
       } else {
         window.electronAPI.clearDiscordPresence();
-        window.electronAPI.updateWebSocketTrack(null);
       }
     };
 
@@ -390,15 +397,31 @@ export default function Player(): JSX.Element {
 
         {/* Volume and other controls - fixed width right section */}
         <div className="flex items-center gap-3 w-[200px] justify-end flex-shrink-0">
-          {/* Queue button */}
+          {/* Settings button - only when sidebar and titlebar are hidden */}
+          {showSettingsButton && (
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 rounded-lg text-text-secondary hover:text-accent-primary hover:bg-bg-tertiary transition-colors"
+              title="Configurações (Ctrl+,)"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Queue button with position indicator */}
           <button
             onClick={() => setShowQueue(!showQueue)}
-            className={`p-2 rounded-full transition-colors ${
-              showQueue ? 'text-accent-primary' : 'text-text-secondary hover:text-text-primary'
+            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors ${
+              showQueue ? 'text-accent-primary bg-accent-primary/10' : 'text-text-secondary hover:text-text-primary hover:bg-bg-tertiary'
             }`}
             title="Fila de reprodução"
           >
             <ListMusic className="w-4 h-4" />
+            {queue.length > 0 && (
+              <span className="text-xs font-medium tabular-nums">
+                {queueIndex + 1}/{queue.length}
+              </span>
+            )}
           </button>
 
           {/* Volume control with scroll */}

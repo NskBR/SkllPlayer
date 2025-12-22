@@ -1,4 +1,5 @@
-import { Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { useTheme } from './hooks/useTheme';
 import Layout from './components/Layout';
 import HomePage from './pages/HomePage';
@@ -13,6 +14,21 @@ import StatsPage from './pages/StatsPage';
 
 function App(): JSX.Element {
   const { theme } = useTheme();
+  const navigate = useNavigate();
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+, or Ctrl+. to open settings (failsafe when sidebar/titlebar hidden)
+      if (e.ctrlKey && (e.key === ',' || e.key === '.')) {
+        e.preventDefault();
+        navigate('/settings');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
   // Show loading while theme is loading
   if (!theme) {

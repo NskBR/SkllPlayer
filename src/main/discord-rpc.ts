@@ -2,7 +2,7 @@ import { Client } from 'discord-rpc';
 import { ipcMain } from 'electron';
 
 // Discord Application ID - You can create your own at https://discord.com/developers/applications
-const CLIENT_ID = '1452007910518427671';
+const CLIENT_ID = '1452364056391581796';
 
 let rpcClient: Client | null = null;
 let isConnected = false;
@@ -24,7 +24,7 @@ export function initDiscordRPC(): void {
     console.log('Discord RPC connected');
     isConnected = true;
 
-    // Set initial presence
+    // Set initial idle presence
     setIdlePresence();
   });
 
@@ -71,9 +71,9 @@ function setIdlePresence(): void {
 
   console.log('[Discord RPC] Setting idle presence');
   rpcClient.setActivity({
-    details: 'Idle',
-    state: 'Not playing anything',
-    largeImageKey: 'logo',
+    details: 'Em Desenvolvimento',
+    state: 'SkllPlayer v0.3',
+    largeImageKey: 'symbol',
     largeImageText: 'SkllPlayer',
     instance: false,
   }).catch((err) => console.error('[Discord RPC] Error setting idle:', err));
@@ -87,25 +87,27 @@ function setPlayingPresence(track: TrackInfo): void {
 
   console.log('[Discord RPC] Setting playing presence:', track.title, 'isPlaying:', track.isPlaying);
 
+  // Calculate timestamps for progress bar
+  const now = Math.floor(Date.now() / 1000);
   const startTimestamp = track.isPlaying
-    ? Math.floor(Date.now() / 1000) - Math.floor(track.currentTime)
+    ? now - Math.floor(track.currentTime)
     : undefined;
 
   const endTimestamp = track.isPlaying && track.duration > 0
-    ? startTimestamp! + Math.floor(track.duration)
+    ? now + Math.floor(track.duration - track.currentTime)
     : undefined;
 
-  const activity: any = {
-    details: track.title || 'Unknown Track',
+  const activity: Record<string, unknown> = {
+    details: track.title || 'Música Desconhecida',
     state: `por ${track.artist || 'Artista Desconhecido'}`,
-    largeImageKey: 'logo', // Use only registered asset, not external URLs
+    largeImageKey: 'symbol',
     largeImageText: 'SkllPlayer',
     smallImageKey: track.isPlaying ? 'play' : 'pause',
-    smallImageText: track.isPlaying ? 'Reproduzindo' : 'Pausado',
+    smallImageText: track.isPlaying ? 'Tocando' : 'Pausado',
     instance: false,
   };
 
-  // Only add timestamps if playing
+  // Add timestamps only when playing (shows elapsed time)
   if (track.isPlaying && startTimestamp && endTimestamp) {
     activity.startTimestamp = startTimestamp;
     activity.endTimestamp = endTimestamp;

@@ -4,25 +4,35 @@ import {
   RefreshCw,
   SortAsc,
   SortDesc,
-  Grid,
+  Grid3X3,
   List,
+  Columns,
   Filter
 } from 'lucide-react';
 import { usePlayerStore, Track } from '../stores/playerStore';
 import TrackList from '../components/TrackList';
+import { useTheme } from '../hooks/useTheme';
+import { motion } from 'framer-motion';
 
 type SortField = 'title' | 'artist' | 'album' | 'addedAt' | 'playCount' | 'duration';
 type SortOrder = 'asc' | 'desc';
-type ViewMode = 'list' | 'grid';
+type ViewMode = 'list' | 'grid' | 'columns';
 
 export default function TracksPage(): JSX.Element {
+  const { layout, updateLayoutOverride } = useTheme();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('title');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Get viewMode from layout settings
+  const viewMode: ViewMode = (layout?.library?.view as ViewMode) || 'grid';
+
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    updateLayoutOverride({ library: { view: mode } });
+  }, [updateLayoutOverride]);
 
   const { setQueue } = usePlayerStore();
 
@@ -182,30 +192,28 @@ export default function TracksPage(): JSX.Element {
           </button>
         </div>
 
-        {/* View mode */}
-        <div className="flex items-center bg-bg-tertiary rounded-lg p-1">
-          <button
-            onClick={() => setViewMode('list')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'list'
-                ? 'bg-accent-primary text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-            title="Lista"
-          >
-            <List className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('grid')}
-            className={`p-2 rounded-md transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-accent-primary text-white'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-            title="Grade"
-          >
-            <Grid className="w-4 h-4" />
-          </button>
+        {/* View mode selector */}
+        <div className="flex items-center gap-1 p-1 bg-bg-tertiary rounded-lg">
+          {[
+            { mode: 'grid' as ViewMode, icon: Grid3X3, label: 'Grade' },
+            { mode: 'list' as ViewMode, icon: List, label: 'Lista' },
+            { mode: 'columns' as ViewMode, icon: Columns, label: 'Colunas' },
+          ].map(({ mode, icon: Icon, label }) => (
+            <motion.button
+              key={mode}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleViewModeChange(mode)}
+              className={`p-2 rounded-md transition-colors ${
+                viewMode === mode
+                  ? 'bg-accent-primary text-white'
+                  : 'text-text-muted hover:text-text-primary hover:bg-bg-secondary'
+              }`}
+              title={label}
+            >
+              <Icon className="w-4 h-4" />
+            </motion.button>
+          ))}
         </div>
       </div>
 

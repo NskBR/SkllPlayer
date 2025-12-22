@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Music, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Music, Trash2, Edit2, ImagePlus, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface Playlist {
@@ -8,6 +8,8 @@ interface Playlist {
   name: string;
   createdAt: string;
   trackCount: number;
+  coverImage: string | null;
+  firstTrackThumbnail: string | null;
 }
 
 export default function PlaylistsPage(): JSX.Element {
@@ -82,6 +84,35 @@ export default function PlaylistsPage(): JSX.Element {
   const startEditing = (playlist: Playlist) => {
     setEditingId(playlist.id);
     setEditName(playlist.name);
+  };
+
+  const handleSelectCover = async (playlistId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.selectPlaylistCover(playlistId);
+        await loadPlaylists();
+      }
+    } catch (error) {
+      console.error('Error selecting cover:', error);
+    }
+  };
+
+  const handleRemoveCover = async (playlistId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.setPlaylistCover(playlistId, null);
+        await loadPlaylists();
+      }
+    } catch (error) {
+      console.error('Error removing cover:', error);
+    }
+  };
+
+  // Get display cover: custom cover > first track thumbnail > default gradient
+  const getPlaylistCover = (playlist: Playlist) => {
+    return playlist.coverImage || playlist.firstTrackThumbnail || null;
   };
 
   return (
@@ -181,8 +212,34 @@ export default function PlaylistsPage(): JSX.Element {
               onClick={() => editingId !== playlist.id && navigate(`/playlists/${playlist.id}`)}
             >
               {/* Playlist thumbnail */}
-              <div className="aspect-square rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-active/20 flex items-center justify-center mb-4">
-                <Music className="w-16 h-16 text-accent-primary/60" />
+              <div className="aspect-square rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-active/20 flex items-center justify-center mb-4 overflow-hidden relative">
+                {getPlaylistCover(playlist) ? (
+                  <img
+                    src={getPlaylistCover(playlist)!}
+                    alt={playlist.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Music className="w-16 h-16 text-accent-primary/60" />
+                )}
+                {/* Cover change button - bottom right corner */}
+                <button
+                  onClick={(e) => handleSelectCover(playlist.id, e)}
+                  className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-accent-primary text-white transition-all z-10 shadow-lg"
+                  title="Alterar capa"
+                >
+                  <ImagePlus className="w-4 h-4" />
+                </button>
+                {/* Remove cover button - only if has custom cover */}
+                {playlist.coverImage && (
+                  <button
+                    onClick={(e) => handleRemoveCover(playlist.id, e)}
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-red-500 text-white transition-all z-10 shadow-lg"
+                    title="Remover capa personalizada"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               {/* Info */}

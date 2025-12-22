@@ -20,7 +20,7 @@ export async function createSplashWindow(): Promise<BrowserWindow> {
   splash.center();
 
   // Load icon as base64
-  const iconPath = path.join(__dirname, '../../Public/Icon/Icone.png');
+  const iconPath = path.join(__dirname, '../../Public/Icon/symbol.png');
   let iconBase64 = '';
   try {
     const iconBuffer = fs.readFileSync(iconPath);
@@ -135,7 +135,7 @@ export async function createSplashWindow(): Promise<BrowserWindow> {
           <img src="${iconBase64}" alt="SkllPlayer" />
         </div>
         <div class="title">SkllPlayer</div>
-        <div class="version">v0.1 Build Test</div>
+        <div class="version">v0.2</div>
         <div class="sound-bars">
           <div class="sound-bar"></div>
           <div class="sound-bar"></div>

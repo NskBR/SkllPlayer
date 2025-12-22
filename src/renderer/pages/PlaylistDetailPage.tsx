@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, Plus, Shuffle } from 'lucide-react';
+import { ArrowLeft, Play, Plus, Shuffle, ImagePlus, X, Music } from 'lucide-react';
 import { usePlayerStore, Track } from '../stores/playerStore';
 import TrackList from '../components/TrackList';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -10,6 +10,8 @@ interface Playlist {
   name: string;
   createdAt: string;
   trackCount: number;
+  coverImage: string | null;
+  firstTrackThumbnail: string | null;
 }
 
 export default function PlaylistDetailPage(): JSX.Element {
@@ -122,6 +124,36 @@ export default function PlaylistDetailPage(): JSX.Element {
     setQueue(tracks, index);
   };
 
+  const handleSelectCover = async () => {
+    if (!id) return;
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.selectPlaylistCover(parseInt(id));
+        await loadPlaylistData();
+      }
+    } catch (error) {
+      console.error('Error selecting cover:', error);
+    }
+  };
+
+  const handleRemoveCover = async () => {
+    if (!id) return;
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.setPlaylistCover(parseInt(id), null);
+        await loadPlaylistData();
+      }
+    } catch (error) {
+      console.error('Error removing cover:', error);
+    }
+  };
+
+  // Get display cover: custom cover > first track thumbnail > null
+  const getPlaylistCover = () => {
+    if (!playlist) return null;
+    return playlist.coverImage || playlist.firstTrackThumbnail || null;
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -156,6 +188,39 @@ export default function PlaylistDetailPage(): JSX.Element {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
+
+        {/* Playlist cover */}
+        <div className="w-32 h-32 rounded-lg bg-gradient-to-br from-accent-primary/20 to-accent-active/20 flex-shrink-0 overflow-hidden relative group">
+          {getPlaylistCover() ? (
+            <img
+              src={getPlaylistCover()!}
+              alt={playlist.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Music className="w-12 h-12 text-accent-primary/60" />
+            </div>
+          )}
+          {/* Cover change button - bottom right corner */}
+          <button
+            onClick={handleSelectCover}
+            className="absolute bottom-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-accent-primary text-white transition-all z-10 shadow-lg"
+            title="Alterar capa"
+          >
+            <ImagePlus className="w-4 h-4" />
+          </button>
+          {/* Remove cover button - only if has custom cover */}
+          {playlist.coverImage && (
+            <button
+              onClick={handleRemoveCover}
+              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-red-500 text-white transition-all z-10 shadow-lg"
+              title="Remover capa personalizada"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
 
         <div className="flex-1">
           <h1 className="text-theme-title font-bold text-text-primary">

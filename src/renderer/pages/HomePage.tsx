@@ -33,6 +33,44 @@ export default function HomePage(): JSX.Element {
     }
   }, []);
 
+  // Handle optimistic track updates
+  const handleTrackUpdate = useCallback((trackId: number, updates: Partial<Track>) => {
+    // Update topTracks
+    setTopTracks(prev => prev.map(track =>
+      track.id === trackId ? { ...track, ...updates } : track
+    ));
+
+    // Update favoriteTracks - add or remove based on isFavorite
+    if (updates.isFavorite !== undefined) {
+      if (updates.isFavorite) {
+        // If favorited, we might need to add it to favorites list
+        // For now, just update the existing item if it's there
+        setFavoriteTracks(prev => {
+          const exists = prev.some(t => t.id === trackId);
+          if (exists) {
+            return prev.map(track =>
+              track.id === trackId ? { ...track, ...updates } : track
+            );
+          }
+          // If the track was favorited from topTracks, add it to favorites
+          const trackFromTop = topTracks.find(t => t.id === trackId);
+          if (trackFromTop) {
+            return [{ ...trackFromTop, ...updates }, ...prev].slice(0, 5);
+          }
+          return prev;
+        });
+      } else {
+        // If unfavorited, remove from favorites list
+        setFavoriteTracks(prev => prev.filter(track => track.id !== trackId));
+      }
+    } else {
+      // Just update the track in favorites
+      setFavoriteTracks(prev => prev.map(track =>
+        track.id === trackId ? { ...track, ...updates } : track
+      ));
+    }
+  }, [topTracks]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -104,7 +142,7 @@ export default function HomePage(): JSX.Element {
           <TrackList
             tracks={favoriteTracks}
             onPlay={(_track, index) => setQueue(favoriteTracks, index)}
-            onTrackUpdate={loadData}
+            onTrackUpdate={handleTrackUpdate}
           />
         </section>
       )}
@@ -124,7 +162,7 @@ export default function HomePage(): JSX.Element {
             tracks={topTracks}
             onPlay={(_track, index) => setQueue(topTracks, index)}
             showPlayCount
-            onTrackUpdate={loadData}
+            onTrackUpdate={handleTrackUpdate}
           />
         </section>
       )}

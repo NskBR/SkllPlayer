@@ -470,6 +470,7 @@ export async function downloadTrack(
     '-o', outputTemplate,
     '--no-playlist',
     '--embed-thumbnail',
+    '--convert-thumbnails', 'jpg', // Convert thumbnail to jpg for compatibility
     '--add-metadata',
     '--progress',
     '--newline',
@@ -635,5 +636,129 @@ export async function getYtDlpStatus(): Promise<YtDlpStatus> {
     path: ytdlpPath,
     ffmpegInstalled,
     ffmpegPath,
+  };
+}
+
+// =====================================================
+// uBlock Origin Extension Download
+// =====================================================
+
+const UBLOCK_API_URL = 'https://api.github.com/repos/gorhill/uBlock/releases/latest';
+
+// Get the path where uBlock extension should be stored
+export function getUBlockDir(): string {
+  const userDataPath = app.getPath('userData');
+  return path.join(userDataPath, 'extensions', 'uBlock0');
+}
+
+export function getUBlockPath(): string {
+  return path.join(getUBlockDir(), 'uBlock0.chromium');
+}
+
+// Check if uBlock Origin is installed
+export function isUBlockInstalled(): boolean {
+  const uBlockPath = getUBlockPath();
+  const manifestPath = path.join(uBlockPath, 'manifest.json');
+  return fs.existsSync(manifestPath);
+}
+
+// Get latest uBlock Origin download URL from GitHub API
+async function getUBlockDownloadUrl(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/gorhill/uBlock/releases/latest',
+      headers: {
+        'User-Agent': 'SkllPlayer/1.0',
+        'Accept': 'application/vnd.github.v3+json',
+      },
+    };
+
+    https.get(options, (response) => {
+      let data = '';
+
+      response.on('data', (chunk) => {
+        data += chunk;
+      });
+
+      response.on('end', () => {
+        try {
+          const release = JSON.parse(data);
+          const assets = release.assets || [];
+
+          // Find the Chromium zip file
+          const chromiumAsset = assets.find((a: any) =>
+            a.name && a.name.includes('chromium') && a.name.endsWith('.zip')
+          );
+
+          if (chromiumAsset && chromiumAsset.browser_download_url) {
+            resolve(chromiumAsset.browser_download_url);
+          } else {
+            reject(new Error('Could not find uBlock Origin Chromium download'));
+          }
+        } catch (e) {
+          reject(new Error('Failed to parse GitHub API response'));
+        }
+      });
+    }).on('error', reject);
+  });
+}
+
+// Download and install uBlock Origin
+export async function installUBlock(): Promise<string> {
+  const uBlockDir = getUBlockDir();
+  const uBlockPath = getUBlockPath();
+  const zipPath = path.join(uBlockDir, 'ublock.zip');
+
+  console.log('[SkllPlayer] Installing uBlock Origin...');
+
+  // Create directory
+  if (!fs.existsSync(uBlockDir)) {
+    fs.mkdirSync(uBlockDir, { recursive: true });
+  }
+
+  // Get latest download URL
+  console.log('[SkllPlayer] Fetching latest uBlock Origin release...');
+  const downloadUrl = await getUBlockDownloadUrl();
+  console.log('[SkllPlayer] Download URL:', downloadUrl);
+
+  // Download the zip file
+  console.log('[SkllPlayer] Downloading uBlock Origin...');
+  await downloadFile(downloadUrl, zipPath);
+
+  // Extract the zip
+  console.log('[SkllPlayer] Extracting uBlock Origin...');
+  try {
+    // Remove old extension if exists
+    if (fs.existsSync(uBlockPath)) {
+      fs.rmSync(uBlockPath, { recursive: true, force: true });
+    }
+
+    // Extract using PowerShell
+    execSync(`powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${uBlockDir}' -Force"`, {
+      windowsHide: true,
+    });
+
+    // Remove zip file
+    fs.unlinkSync(zipPath);
+
+    console.log('[SkllPlayer] uBlock Origin installed successfully at:', uBlockPath);
+    return uBlockPath;
+  } catch (error) {
+    console.error('[SkllPlayer] Failed to extract uBlock Origin:', error);
+    throw new Error('Failed to extract uBlock Origin');
+  }
+}
+
+// Get uBlock status
+export interface UBlockStatus {
+  installed: boolean;
+  path: string;
+}
+
+export function getUBlockStatus(): UBlockStatus {
+  return {
+    installed: isUBlockInstalled(),
+    path: getUBlockPath(),
   };
 }
