@@ -64,8 +64,8 @@ Um player de música desktop moderno e elegante, inspirado no BlackPlayer para A
 
 ### Discord Rich Presence
 - Mostra o que você está ouvindo no Discord
-- WebSocket server para integração com Vencord
-- Mostra título, artista e progresso da música
+- Integração nativa com discord-rpc
+- Mostra título, artista e status da música
 
 ### System Tray
 - Minimizar para bandeja do sistema
@@ -128,7 +128,6 @@ npm run package  # Gera o executável
 - **electron-store** 8.x - Armazenamento local
 - **yt-dlp** - Download do YouTube
 - **discord-rpc** - Rich Presence
-- **ws** - WebSocket server
 
 ## Temas Disponíveis
 
@@ -152,7 +151,6 @@ SkllPlayer/
 │   │   ├── ipc.ts             # Handlers IPC
 │   │   ├── splash.ts          # Splash screen
 │   │   ├── discord-rpc.ts     # Discord Rich Presence
-│   │   ├── websocket-server.ts # WebSocket para Vencord
 │   │   └── downloader.ts      # yt-dlp integration
 │   │
 │   └── renderer/
