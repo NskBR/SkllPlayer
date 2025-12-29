@@ -1,11 +1,11 @@
-import { ReactNode, useState, useEffect, useMemo } from 'react';
+import { ReactNode, useState, useEffect, useMemo, useCallback } from 'react';
 import { Minus, Square, X, Home, Music, Heart, ListMusic, Sliders, Settings, Download, BarChart3 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTheme } from '../hooks/useTheme';
 import Titlebar from './Titlebar';
 import Sidebar from './Sidebar';
 import Player from './Player';
-import FirstUseWizard from './FirstUseWizard';
+import CloseModal from './CloseModal';
 
 interface LayoutProps {
   children: ReactNode;
@@ -27,18 +27,39 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
   const navigate = useNavigate();
   const location = useLocation();
   const { layout } = useTheme();
-  const [showWizard, setShowWizard] = useState(false);
-  const [isCheckingFirstUse, setIsCheckingFirstUse] = useState(true);
   const [isMaximized, setIsMaximized] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+
+  // Handle close modal actions
+  const handleMinimizeToTray = useCallback((remember: boolean) => {
+    setShowCloseModal(false);
+    window.electronAPI?.closeModalResponse?.('tray', remember);
+  }, []);
+
+  const handleQuit = useCallback((remember: boolean) => {
+    setShowCloseModal(false);
+    window.electronAPI?.closeModalResponse?.('close', remember);
+  }, []);
+
+  const handleCloseModalCancel = useCallback(() => {
+    setShowCloseModal(false);
+    window.electronAPI?.closeModalResponse?.('cancel', false);
+  }, []);
 
   useEffect(() => {
-    checkFirstUse();
     checkMaximized();
 
     // Listen for window state changes
     if (window.electronAPI?.onWindowStateChanged) {
       window.electronAPI.onWindowStateChanged((state) => {
         setIsMaximized(state.isMaximized);
+      });
+    }
+
+    // Listen for close modal request from main process
+    if (window.electronAPI?.onShowCloseModal) {
+      window.electronAPI.onShowCloseModal(() => {
+        setShowCloseModal(true);
       });
     }
   }, []);
@@ -48,25 +69,6 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
       const maximized = await window.electronAPI.isMaximized();
       setIsMaximized(maximized);
     }
-  };
-
-  const checkFirstUse = async () => {
-    try {
-      if (window.electronAPI) {
-        const settings = await window.electronAPI.getSettings();
-        // Show wizard if no music folder is set
-        if (!settings.musicFolder) {
-          setShowWizard(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking first use:', error);
-    }
-    setIsCheckingFirstUse(false);
-  };
-
-  const handleWizardComplete = () => {
-    setShowWizard(false);
   };
 
   const handleMinimize = () => {
@@ -101,9 +103,6 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
       className="app-container flex flex-col h-screen overflow-hidden"
       style={bgStyle}
     >
-      {/* First Use Wizard */}
-      {showWizard && <FirstUseWizard onComplete={handleWizardComplete} />}
-
       {/* Custom Titlebar */}
       {headerVisible && <Titlebar />}
 
@@ -194,6 +193,14 @@ export default function Layout({ children }: LayoutProps): JSX.Element {
         {/* Sidebar - Right position */}
         {sidebarVisible && sidebarPosition === 'right' && <Sidebar position="right" />}
       </div>
+
+      {/* Close Modal */}
+      <CloseModal
+        isOpen={showCloseModal}
+        onClose={handleCloseModalCancel}
+        onMinimizeToTray={handleMinimizeToTray}
+        onQuit={handleQuit}
+      />
     </div>
   );
 }

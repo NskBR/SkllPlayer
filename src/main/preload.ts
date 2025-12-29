@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('window-state-changed', (_event, state) => callback(state));
   },
 
+  // Close modal handlers
+  onShowCloseModal: (callback: () => void) => {
+    ipcRenderer.on('show-close-modal', () => callback());
+  },
+  closeModalResponse: (action: 'tray' | 'close' | 'cancel', remember: boolean) => {
+    ipcRenderer.send('close-modal-response', action, remember);
+  },
+
   // File system
   selectMusicFolder: () => ipcRenderer.invoke('select-music-folder'),
   analyzeFolder: (folderPath: string) => ipcRenderer.invoke('analyze-folder', folderPath),
@@ -59,6 +67,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveCustomTheme: (theme: Record<string, unknown>) => ipcRenderer.invoke('save-custom-theme', theme),
   updateTheme: (themeName: string, updates: Record<string, unknown>) => ipcRenderer.invoke('update-theme', themeName, updates),
   openThemesFolder: () => ipcRenderer.invoke('open-themes-folder'),
+  getDefaultDownloadFolder: () => ipcRenderer.invoke('get-default-download-folder'),
+  openMusicFolder: () => ipcRenderer.invoke('open-music-folder'),
 
   // Settings
   getSettings: () => ipcRenderer.invoke('get-settings'),

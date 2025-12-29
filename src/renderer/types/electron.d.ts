@@ -227,6 +227,10 @@ export interface ElectronAPI {
   // Window state
   onWindowStateChanged: (callback: (state: { isMaximized: boolean; isFullScreen: boolean }) => void) => void;
 
+  // Close modal
+  onShowCloseModal: (callback: () => void) => void;
+  closeModalResponse: (action: 'tray' | 'close' | 'cancel', remember: boolean) => void;
+
   // File system
   selectMusicFolder: () => Promise<string | null>;
   analyzeFolder: (folderPath: string) => Promise<FolderAnalysis>;
@@ -293,6 +297,8 @@ export interface ElectronAPI {
   saveCustomTheme: (theme: Theme) => Promise<void>;
   updateTheme: (themeName: string, updates: Partial<Theme>) => Promise<Theme>;
   openThemesFolder: () => Promise<void>;
+  getDefaultDownloadFolder: () => Promise<string>;
+  openMusicFolder: () => Promise<void>;
 
   // Settings
   getSettings: () => Promise<Settings>;

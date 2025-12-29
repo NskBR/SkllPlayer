@@ -7,6 +7,9 @@ const CLIENT_ID = '1452364056391581796';
 let rpcClient: Client | null = null;
 let isConnected = false;
 let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+let pendingTrack: TrackInfo | null = null;
 
 interface TrackInfo {
   title: string;
@@ -18,51 +21,75 @@ interface TrackInfo {
 }
 
 export function initDiscordRPC(): void {
+  createClient();
+  setupIpcHandlers();
+}
+
+function createClient(): void {
+  // Clean up existing client if any
+  if (rpcClient) {
+    try {
+      rpcClient.destroy().catch(() => {});
+    } catch {
+      // Ignore cleanup errors
+    }
+    rpcClient = null;
+  }
+
   rpcClient = new Client({ transport: 'ipc' });
 
   rpcClient.on('ready', () => {
-    console.log('Discord RPC connected');
+    console.log('[Discord RPC] Connected successfully');
     isConnected = true;
+    reconnectAttempts = 0;
 
-    // Set initial idle presence
-    setIdlePresence();
+    // Apply pending track if any, otherwise set idle
+    if (pendingTrack) {
+      setPlayingPresence(pendingTrack);
+    } else {
+      setIdlePresence();
+    }
   });
 
   rpcClient.on('disconnected', () => {
-    console.log('Discord RPC disconnected');
+    console.log('[Discord RPC] Disconnected');
     isConnected = false;
-
-    // Try to reconnect after 10 seconds
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-    }
-    reconnectTimeout = setTimeout(() => {
-      connectRPC();
-    }, 10000);
+    scheduleReconnect(10000);
   });
 
   rpcClient.on('error', (error: Error) => {
-    console.error('Discord RPC error:', error);
+    console.error('[Discord RPC] Error:', error.message);
+    isConnected = false;
   });
 
   connectRPC();
-  setupIpcHandlers();
+}
+
+function scheduleReconnect(delay: number): void {
+  if (reconnectTimeout) {
+    clearTimeout(reconnectTimeout);
+  }
+
+  if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+    console.log('[Discord RPC] Max reconnect attempts reached, waiting 5 minutes');
+    reconnectAttempts = 0;
+    delay = 300000; // 5 minutes
+  }
+
+  reconnectTimeout = setTimeout(() => {
+    reconnectAttempts++;
+    console.log(`[Discord RPC] Reconnect attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
+    createClient();
+  }, delay);
 }
 
 function connectRPC(): void {
   if (!rpcClient) return;
 
   rpcClient.login({ clientId: CLIENT_ID }).catch((error: Error) => {
-    console.log('Discord RPC connection failed (Discord may not be running):', error.message);
+    console.log('[Discord RPC] Connection failed (Discord may not be running):', error.message);
     isConnected = false;
-
-    // Retry connection after 30 seconds
-    if (reconnectTimeout) {
-      clearTimeout(reconnectTimeout);
-    }
-    reconnectTimeout = setTimeout(() => {
-      connectRPC();
-    }, 30000);
+    scheduleReconnect(30000);
   });
 }
 
@@ -80,8 +107,11 @@ function setIdlePresence(): void {
 }
 
 function setPlayingPresence(track: TrackInfo): void {
+  // Store as pending in case we're not connected yet
+  pendingTrack = track;
+
   if (!rpcClient || !isConnected) {
-    console.log('[Discord RPC] Cannot set playing presence - not connected');
+    console.log('[Discord RPC] Not connected, track queued for when connection is ready');
     return;
   }
 
@@ -122,6 +152,7 @@ function setupIpcHandlers(): void {
   ipcMain.on('discord-rpc-update', (_event, track: TrackInfo | null) => {
     console.log('[Discord RPC] Received update from renderer:', track ? track.title : 'null');
     if (!track) {
+      pendingTrack = null;
       setIdlePresence();
     } else {
       setPlayingPresence(track);
@@ -131,6 +162,7 @@ function setupIpcHandlers(): void {
   // Clear presence
   ipcMain.on('discord-rpc-clear', () => {
     console.log('[Discord RPC] Received clear command');
+    pendingTrack = null;
     setIdlePresence();
   });
 }

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import { useTheme } from './hooks/useTheme';
 import Layout from './components/Layout';
@@ -11,10 +11,12 @@ import EqualizerPage from './pages/EqualizerPage';
 import SettingsPage from './pages/SettingsPage';
 import DownloaderPage from './pages/DownloaderPage';
 import StatsPage from './pages/StatsPage';
+import WelcomeModal from './components/WelcomeModal';
 
 function App(): JSX.Element {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [showWelcome, setShowWelcome] = useState(true);
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -43,19 +45,22 @@ function App(): JSX.Element {
   }
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/tracks" element={<TracksPage />} />
-        <Route path="/favorites" element={<FavoritesPage />} />
-        <Route path="/playlists" element={<PlaylistsPage />} />
-        <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
-        <Route path="/equalizer" element={<EqualizerPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/downloader" element={<DownloaderPage />} />
-        <Route path="/stats" element={<StatsPage />} />
-      </Routes>
-    </Layout>
+    <>
+      {showWelcome && <WelcomeModal onComplete={() => setShowWelcome(false)} />}
+      <Layout>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/tracks" element={<TracksPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/playlists" element={<PlaylistsPage />} />
+          <Route path="/playlists/:id" element={<PlaylistDetailPage />} />
+          <Route path="/equalizer" element={<EqualizerPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/downloader" element={<DownloaderPage />} />
+          <Route path="/stats" element={<StatsPage />} />
+        </Routes>
+      </Layout>
+    </>
   );
 }
 

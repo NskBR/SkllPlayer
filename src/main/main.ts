@@ -13,6 +13,24 @@ let isQuitting = false;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Single instance lock - prevent multiple app windows
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  // Another instance is already running, quit this one
+  app.quit();
+} else {
+  // Handle when user tries to open a second instance
+  app.on('second-instance', () => {
+    // Focus the existing window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
+
 // Register custom protocol for serving local audio files
 function registerMediaProtocol(): void {
   protocol.registerFileProtocol('media', (request, callback) => {
@@ -43,7 +61,7 @@ async function createMainWindow(): Promise<BrowserWindow> {
     minWidth: 900,
     minHeight: 600,
     frame: false, // Remove default frame for custom titlebar
-    transparent: true, // Enable transparency for acrylic/mica effects
+    transparent: true, // Required for acrylic/mica glass effects
     backgroundColor: '#00000000', // Fully transparent background
     show: false, // Hidden initially, shown after splash
     webPreferences: {
@@ -77,24 +95,12 @@ async function createMainWindow(): Promise<BrowserWindow> {
 }
 
 function registerGlobalShortcuts(): void {
-  // Media keys
-  globalShortcut.register('MediaPlayPause', () => {
-    mainWindow?.webContents.send('media-key', 'play-pause');
-  });
+  // NOTE: Media keys (MediaPlayPause, MediaNextTrack, MediaPreviousTrack, MediaStop)
+  // are now handled by the Media Session API in the renderer process.
+  // This allows proper media key priority like Spotify/YouTube - when SkllPlayer
+  // is playing, it gets the media keys; when another app plays, that app gets them.
 
-  globalShortcut.register('MediaNextTrack', () => {
-    mainWindow?.webContents.send('media-key', 'next');
-  });
-
-  globalShortcut.register('MediaPreviousTrack', () => {
-    mainWindow?.webContents.send('media-key', 'previous');
-  });
-
-  globalShortcut.register('MediaStop', () => {
-    mainWindow?.webContents.send('media-key', 'stop');
-  });
-
-  // Volume control
+  // Volume control - these still use global shortcuts as they should always work
   globalShortcut.register('VolumeUp', () => {
     mainWindow?.webContents.send('media-key', 'volume-up');
   });
@@ -224,7 +230,7 @@ function createTray(): void {
   });
 }
 
-// Handle window close with dialog
+// Handle window close with custom modal
 async function handleWindowClose(): Promise<void> {
   const behavior = getCloseBehavior();
 
@@ -239,33 +245,28 @@ async function handleWindowClose(): Promise<void> {
     return;
   }
 
-  // behavior === 'ask' - show dialog
-  const result = await dialog.showMessageBox(mainWindow!, {
-    type: 'question',
-    buttons: ['Minimizar na bandeja', 'Fechar o aplicativo'],
-    defaultId: 0,
-    cancelId: 1,
-    title: 'Fechar SkllPlayer',
-    message: 'O que deseja fazer?',
-    detail: 'Você pode alterar isso depois em Configurações.',
-    checkboxLabel: 'Lembrar minha escolha',
-    checkboxChecked: false
-  });
+  // behavior === 'ask' - show custom modal in renderer
+  mainWindow?.webContents.send('show-close-modal');
+}
 
-  if (result.checkboxChecked) {
-    // Save choice
-    saveCloseBehavior(result.response === 0 ? 'tray' : 'close');
+// Handle close modal response from renderer
+ipcMain.on('close-modal-response', (_event, action: 'tray' | 'close' | 'cancel', remember: boolean) => {
+  if (action === 'cancel') {
+    // User cancelled, do nothing
+    return;
   }
 
-  if (result.response === 0) {
-    // Minimize to tray
+  if (remember) {
+    saveCloseBehavior(action);
+  }
+
+  if (action === 'tray') {
     mainWindow?.hide();
   } else {
-    // Close app
     isQuitting = true;
     app.quit();
   }
-}
+});
 
 async function initialize(): Promise<void> {
   // Register custom protocol for audio files

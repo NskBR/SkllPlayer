@@ -92,6 +92,78 @@ let crossfadeTimer: ReturnType<typeof setTimeout> | null = null;
 let isCrossfading = false;
 let fadingOutHowl: Howl | null = null;
 
+// Media Session API - Update metadata when track changes
+function updateMediaSessionMetadata(track: Track | null): void {
+  if (!('mediaSession' in navigator) || !track) return;
+
+  try {
+    const artwork: MediaImage[] = [];
+    if (track.thumbnail) {
+      // Convert local file path to media:// URL for artwork
+      const artworkUrl = track.thumbnail.startsWith('media://')
+        ? track.thumbnail
+        : 'media://' + track.thumbnail.replace(/\\/g, '/');
+      artwork.push({ src: artworkUrl, sizes: '512x512', type: 'image/jpeg' });
+    }
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: track.title || 'Unknown Title',
+      artist: track.artist || 'Unknown Artist',
+      album: track.album || 'Unknown Album',
+      artwork: artwork,
+    });
+  } catch (e) {
+    console.error('Error updating Media Session metadata:', e);
+  }
+}
+
+// Media Session API - Update playback state
+function updateMediaSessionPlaybackState(isPlaying: boolean): void {
+  if (!('mediaSession' in navigator)) return;
+
+  try {
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+  } catch (e) {
+    console.error('Error updating Media Session playback state:', e);
+  }
+}
+
+// Initialize Media Session action handlers
+function initializeMediaSessionHandlers(): void {
+  if (!('mediaSession' in navigator)) return;
+
+  try {
+    navigator.mediaSession.setActionHandler('play', () => {
+      const store = usePlayerStore.getState();
+      store.play();
+    });
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+      const store = usePlayerStore.getState();
+      store.pause();
+    });
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      const store = usePlayerStore.getState();
+      store.next();
+    });
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      const store = usePlayerStore.getState();
+      store.previous();
+    });
+
+    navigator.mediaSession.setActionHandler('stop', () => {
+      const store = usePlayerStore.getState();
+      store.stop();
+    });
+
+    console.log('Media Session API handlers initialized');
+  } catch (e) {
+    console.error('Error initializing Media Session handlers:', e);
+  }
+}
+
 // Gapless playback state
 let preloadedHowl: Howl | null = null;
 let preloadedTrack: Track | null = null;
@@ -220,6 +292,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onplay: () => {
         set({ isPlaying: true });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(true);
         // Reset listening time tracker when starting playback
         lastListeningTimeUpdate = Date.now();
         accumulatedListeningTime = 0;
@@ -290,6 +364,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onpause: () => {
         set({ isPlaying: false });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(false);
         // Save any accumulated listening time when pausing
         if (accumulatedListeningTime > 0 && window.electronAPI) {
           window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
@@ -299,6 +375,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onstop: () => {
         set({ isPlaying: false, currentTime: 0 });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(false);
         // Save any accumulated listening time when stopping
         if (accumulatedListeningTime > 0 && window.electronAPI) {
           window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
@@ -338,6 +416,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
 
     set({ currentTrack: track, howl, currentTime: 0 });
+
+    // Update Media Session metadata
+    updateMediaSessionMetadata(track);
 
     // Auto play if requested
     if (autoPlay) {
@@ -455,6 +536,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         duration: newHowl.duration(),
       });
 
+      // Update Media Session metadata for the new track
+      updateMediaSessionMetadata(newTrack);
+
       // Set volume
       newHowl.volume(isMuted ? 0 : volume);
 
@@ -464,6 +548,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       // Set up onplay handler for the preloaded track
       newHowl.on('play', () => {
         set({ isPlaying: true });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(true);
         lastListeningTimeUpdate = Date.now();
         accumulatedListeningTime = 0;
 
@@ -508,6 +594,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
       newHowl.on('pause', () => {
         set({ isPlaying: false });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(false);
         if (accumulatedListeningTime > 0 && window.electronAPI) {
           window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
           accumulatedListeningTime = 0;
@@ -838,6 +926,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onplay: () => {
         set({ isPlaying: true });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(true);
         lastListeningTimeUpdate = Date.now();
         accumulatedListeningTime = 0;
 
@@ -907,6 +997,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onpause: () => {
         set({ isPlaying: false });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(false);
         if (accumulatedListeningTime > 0 && window.electronAPI) {
           window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
           accumulatedListeningTime = 0;
@@ -915,6 +1007,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       },
       onstop: () => {
         set({ isPlaying: false, currentTime: 0 });
+        // Update Media Session playback state
+        updateMediaSessionPlaybackState(false);
         if (accumulatedListeningTime > 0 && window.electronAPI) {
           window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
           accumulatedListeningTime = 0;
@@ -952,6 +1046,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     });
 
     set({ currentTrack: nextTrack, howl: newHowl, currentTime: 0 });
+
+    // Update Media Session metadata for the crossfade track
+    updateMediaSessionMetadata(nextTrack);
 
     // Start playing the new track
     setTimeout(() => {
@@ -1085,6 +1182,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 },
                 onplay: () => {
                   set({ isPlaying: true });
+                  // Update Media Session playback state
+                  updateMediaSessionPlaybackState(true);
                   // Reset listening time tracker when starting playback
                   lastListeningTimeUpdate = Date.now();
                   accumulatedListeningTime = 0;
@@ -1123,6 +1222,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 },
                 onpause: () => {
                   set({ isPlaying: false });
+                  // Update Media Session playback state
+                  updateMediaSessionPlaybackState(false);
                   // Save any accumulated listening time when pausing
                   if (accumulatedListeningTime > 0 && window.electronAPI) {
                     window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
@@ -1132,6 +1233,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
                 },
                 onstop: () => {
                   set({ isPlaying: false, currentTime: 0 });
+                  // Update Media Session playback state
+                  updateMediaSessionPlaybackState(false);
                   // Save any accumulated listening time when stopping
                   if (accumulatedListeningTime > 0 && window.electronAPI) {
                     window.electronAPI.addListeningTime(Math.floor(accumulatedListeningTime));
@@ -1159,6 +1262,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
               });
 
               set({ currentTrack: track, howl });
+              // Update Media Session metadata for restored track
+              updateMediaSessionMetadata(track);
             }
           }
         }
@@ -1170,12 +1275,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   },
 }));
 
-// Listen for media keys from main process
+// Listen for media keys from main process (only volume keys now, media keys handled by Media Session API)
 if (typeof window !== 'undefined' && window.electronAPI) {
   window.electronAPI.onMediaKey((key: string) => {
     const store = usePlayerStore.getState();
 
     switch (key) {
+      // Media keys are now handled by Media Session API for proper system integration
+      // These handlers remain for backward compatibility with main process volume shortcuts
       case 'play-pause':
         if (store.isPlaying) {
           store.pause();
@@ -1203,6 +1310,9 @@ if (typeof window !== 'undefined' && window.electronAPI) {
         break;
     }
   });
+
+  // Initialize Media Session API handlers for system media key integration
+  initializeMediaSessionHandlers();
 
   // Restore state on initialization
   usePlayerStore.getState().restoreState();

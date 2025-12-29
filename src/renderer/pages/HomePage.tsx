@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Clock, Music, PlayCircle, TrendingUp, Heart } from 'lucide-react';
 import { usePlayerStore, Track } from '../stores/playerStore';
 import TrackList from '../components/TrackList';
@@ -135,9 +136,9 @@ export default function HomePage(): JSX.Element {
                 Favoritas
               </h2>
             </div>
-            <a href="/favorites" className="text-sm text-accent-primary hover:text-accent-hover transition-colors">
+            <Link to="/favorites" className="text-sm text-accent-primary hover:text-accent-hover transition-colors">
               Ver todas
-            </a>
+            </Link>
           </div>
           <TrackList
             tracks={favoriteTracks}
@@ -154,9 +155,9 @@ export default function HomePage(): JSX.Element {
             <h2 className="text-theme-large font-semibold text-text-primary">
               Mais Tocadas
             </h2>
-            <a href="/tracks" className="text-sm text-accent-primary hover:text-accent-hover transition-colors">
+            <Link to="/tracks" className="text-sm text-accent-primary hover:text-accent-hover transition-colors">
               Ver todas
-            </a>
+            </Link>
           </div>
           <TrackList
             tracks={topTracks}
@@ -220,8 +221,8 @@ interface QuickActionProps {
 
 function QuickAction({ title, description, icon, href }: QuickActionProps): JSX.Element {
   return (
-    <a
-      href={href}
+    <Link
+      to={href}
       className="flex items-center gap-4 p-4 bg-bg-secondary rounded-xl border border-bg-tertiary hover:border-accent-primary/30 hover:bg-bg-tertiary transition-all group"
     >
       <div className="w-12 h-12 rounded-lg bg-bg-tertiary flex items-center justify-center text-text-secondary group-hover:text-accent-primary transition-colors">
@@ -231,6 +232,6 @@ function QuickAction({ title, description, icon, href }: QuickActionProps): JSX.
         <h3 className="font-medium text-text-primary">{title}</h3>
         <p className="text-sm text-text-secondary">{description}</p>
       </div>
-    </a>
+    </Link>
   );
 }

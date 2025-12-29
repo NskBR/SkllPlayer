@@ -1,6 +1,6 @@
 # SkllPlayer - Progresso do Desenvolvimento
 
-## Status Atual: Em Desenvolvimento (v0.3.0)
+## Status Atual: Em Desenvolvimento (v0.3.1)
 
 ---
 
@@ -117,6 +117,7 @@
 - [x] Stop
 - [x] Volume up/down
 - [x] Mute
+- [x] **Media Session API** - Prioridade automática de media keys (como Spotify/YouTube)
 
 ### Equalizador
 - [x] **Equalizador funcional** - Web Audio API conectado ao Howler.js
@@ -187,6 +188,14 @@
 
 ## Concluído Recentemente
 
+### Sessão 29/12/2024
+- [x] **Media Session API** - Prioridade automática de media keys
+  - Migração de `globalShortcut` para Media Session API (Web Standard)
+  - Último app a tocar recebe controle das media keys (como Spotify/YouTube)
+  - Integração com Windows Media Overlay (Win+G, popup de volume)
+  - Metadata exibido no overlay (título, artista, capa)
+  - Controles funcionam quando o app está "ativo" no sistema de mídia
+
 ### Sessão 21/12/2024 (Parte 2)
 - [x] **Animação de troca de tema** - Tela de loading profissional com fade in/out
   - Logo Symbol centralizada com borda gradiente animada
@@ -232,13 +241,6 @@
 ---
 
 ## O Que Falta Fazer
-
-### Media Session API (Prioridade de Media Keys)
-- [ ] Migrar de `globalShortcut` para **Media Session API**
-- [ ] Prioridade automática - último app a tocar recebe os controles
-- [ ] Integração com Windows Media Overlay (Win+G, popup de volume)
-- [ ] Mostrar metadata no overlay (título, artista, capa)
-- [ ] Controles funcionam apenas quando o app está "ativo" no sistema de mídia
 
 ### Efeitos de Áudio Avançados
 - [ ] Crossfade entre músicas

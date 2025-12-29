@@ -658,6 +658,28 @@ export function setupIpcHandlers(mainWindow: BrowserWindow | null = null): void 
     await shell.openPath(themesPath);
   });
 
+  // Get default download folder path
+  ipcMain.handle('get-default-download-folder', () => {
+    return path.join(app.getPath('music'), 'SkllPlayer Downloads');
+  });
+
+  // Open music/download folder in file explorer
+  ipcMain.handle('open-music-folder', async () => {
+    const settings = store.get('settings', defaultSettings) as Record<string, unknown>;
+    let folderPath = settings.musicFolder as string;
+
+    if (!folderPath) {
+      folderPath = path.join(app.getPath('music'), 'SkllPlayer Downloads');
+    }
+
+    // Create folder if it doesn't exist
+    if (!fs.existsSync(folderPath)) {
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    await shell.openPath(folderPath);
+  });
+
   // Settings handlers
   ipcMain.handle('get-settings', () => {
     return store.get('settings', defaultSettings);

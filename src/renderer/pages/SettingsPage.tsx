@@ -159,6 +159,7 @@ export default function SettingsPage(): JSX.Element {
   });
   const [isScanning, setIsScanning] = useState(false);
   const {
+    theme,
     availableThemes,
     loadTheme,
     refreshThemes,
@@ -325,6 +326,7 @@ export default function SettingsPage(): JSX.Element {
           settings={settings}
           availableThemes={availableThemes}
           themeName={themeName}
+          theme={theme}
           colors={colors}
           fonts={fonts}
           colorOverrides={colorOverrides}
@@ -623,6 +625,7 @@ function AparenciaSection({
   settings,
   availableThemes,
   themeName,
+  theme,
   colors,
   fonts,
   colorOverrides,
@@ -647,6 +650,7 @@ function AparenciaSection({
   settings: Settings;
   availableThemes: any[];
   themeName: string;
+  theme: any;
   colors: any;
   fonts: any;
   colorOverrides: ColorOverrides;
@@ -696,37 +700,73 @@ function AparenciaSection({
     return themeName === 'Glass Mica' ? 0.80 : 0.65;
   };
 
-  // Get current glass darkness from colorOverrides OR theme colors (for dark themes)
-  const getGlassDarkness = (): number => {
-    // First check overrides
-    const overrideBg = colorOverrides.background?.primary;
-    if (overrideBg && overrideBg.startsWith('rgba')) {
-      const match = overrideBg.match(/rgba\((\d+),/);
-      if (match) return parseInt(match[1]);
+  // Helper to parse RGBA color string
+  const parseRgba = (color: string): { r: number; g: number; b: number; a: number } | null => {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+    if (match) {
+      return {
+        r: parseInt(match[1]),
+        g: parseInt(match[2]),
+        b: parseInt(match[3]),
+        a: match[4] ? parseFloat(match[4]) : 1,
+      };
     }
-    // Then check theme colors
-    const themeBg = colors?.background?.primary;
-    if (themeBg && themeBg.startsWith('rgba')) {
-      const match = themeBg.match(/rgba\((\d+),/);
-      if (match) return parseInt(match[1]);
-    }
-    return 20;
+    return null;
   };
 
-  // Apply glass effect for DARK themes
-  const applyGlassDarkEffect = (opacity: number, darkness: number) => {
-    const bgColor = `rgba(${darkness}, ${darkness}, ${darkness + 10}, ${opacity})`;
-    const sidebarColor = `rgba(${Math.max(0, darkness - 10)}, ${Math.max(0, darkness - 10)}, ${Math.max(0, darkness - 5)}, ${Math.min(1, opacity + 0.1)})`;
-    const tertiaryColor = `rgba(${darkness + 10}, ${darkness + 10}, ${darkness + 20}, ${Math.min(1, opacity + 0.15)})`;
+  // Get the ORIGINAL theme base colors (not overridden) - uses theme?.colors directly
+  const getThemeBaseColors = () => {
+    // Use original theme colors, not the merged ones with overrides
+    const originalColors = theme?.colors;
+    const themeBg = originalColors?.background?.primary;
+    const themeBgSec = originalColors?.background?.secondary;
+    const themeBgTer = originalColors?.background?.tertiary;
+    const themeSidebar = originalColors?.sidebar?.background;
+
+    return {
+      primary: parseRgba(themeBg || '') || { r: 20, g: 20, b: 30, a: 0.65 },
+      secondary: parseRgba(themeBgSec || '') || { r: 25, g: 25, b: 35, a: 0.70 },
+      tertiary: parseRgba(themeBgTer || '') || { r: 30, g: 30, b: 40, a: 0.75 },
+      sidebar: parseRgba(themeSidebar || '') || { r: 15, g: 15, b: 25, a: 0.75 },
+    };
+  };
+
+  // Get current glass darkness slider value (0-60 range)
+  const getGlassDarkness = (): number => {
+    // Calculate based on the multiplier we're using
+    const base = getThemeBaseColors();
+    const overrideBg = colorOverrides.background?.primary;
+
+    if (overrideBg && overrideBg.startsWith('rgba')) {
+      const parsed = parseRgba(overrideBg);
+      if (parsed && base.primary.r > 0) {
+        // Reverse calculate the multiplier from current color
+        const multiplier = parsed.r / base.primary.r;
+        // Convert multiplier (0.1 to 3.0) back to slider (0 to 60)
+        return Math.round(((multiplier - 0.1) / 2.9) * 60);
+      }
+    }
+    // Default is multiplier 1.0, which corresponds to slider value ~20
+    return Math.round(((1.0 - 0.1) / 2.9) * 60);
+  };
+
+  // Apply glass effect preserving theme color ratios
+  const applyGlassEffect = (opacity: number, darknessMultiplier: number) => {
+    const base = getThemeBaseColors();
+
+    // Scale colors by darkness multiplier while preserving ratios
+    const scaleColor = (color: { r: number; g: number; b: number; a: number }, alphaOffset: number = 0) => {
+      return `rgba(${Math.round(color.r * darknessMultiplier)}, ${Math.round(color.g * darknessMultiplier)}, ${Math.round(color.b * darknessMultiplier)}, ${Math.min(1, opacity + alphaOffset)})`;
+    };
 
     updateColorOverride({
       background: {
-        primary: bgColor,
-        secondary: `rgba(${darkness + 5}, ${darkness + 5}, ${darkness + 15}, ${Math.min(1, opacity + 0.05)})`,
-        tertiary: tertiaryColor,
+        primary: scaleColor(base.primary, 0),
+        secondary: scaleColor(base.secondary, 0.05),
+        tertiary: scaleColor(base.tertiary, 0.10),
       },
       sidebar: {
-        background: sidebarColor,
+        background: scaleColor(base.sidebar, 0.10),
       },
     });
   };
@@ -751,18 +791,33 @@ function AparenciaSection({
     });
   };
 
+  // Get current darkness multiplier (1.0 = original, 0.5 = darker, 2.0 = lighter)
+  const getDarknessMultiplier = (): number => {
+    const base = getThemeBaseColors();
+    const overrideBg = colorOverrides.background?.primary;
+    if (overrideBg) {
+      const parsed = parseRgba(overrideBg);
+      if (parsed && base.primary.r > 0) {
+        return parsed.r / base.primary.r;
+      }
+    }
+    return 1.0;
+  };
+
   // Real-time glass opacity change
   const handleGlassOpacityChange = (opacity: number) => {
     if (isGlassLightTheme) {
       applyGlassLightEffect(opacity);
     } else {
-      applyGlassDarkEffect(opacity, getGlassDarkness());
+      applyGlassEffect(opacity, getDarknessMultiplier());
     }
   };
 
   // Real-time glass darkness change (only for dark themes)
   const handleGlassDarknessChange = (darkness: number) => {
-    applyGlassDarkEffect(getGlassOpacity(), darkness);
+    // Convert darkness (0-60) to multiplier (0.1 to 3.0)
+    const multiplier = 0.1 + (darkness / 60) * 2.9;
+    applyGlassEffect(getGlassOpacity(), multiplier);
   };
 
   // Real-time accent color change (for glass and community themes)
@@ -1050,8 +1105,8 @@ function AparenciaSection({
         </motion.div>
       )}
 
-      {/* Community Theme Editor - Inline */}
-      {isCommunityTheme && (
+      {/* Community Theme Editor - Inline (only for non-glass community themes) */}
+      {isCommunityTheme && !currentIsGlassTheme && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}

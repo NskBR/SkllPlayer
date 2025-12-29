@@ -93,8 +93,10 @@ export default function DownloaderPage(): JSX.Element {
   const [showSettings, setShowSettings] = useState(false);
   const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
   const [isInstallingYtdlp, setIsInstallingYtdlp] = useState(false);
+  const [ytdlpInstallStatus, setYtdlpInstallStatus] = useState('');
   const [uBlockStatus, setUBlockStatus] = useState<UBlockStatus | null>(null);
   const [isInstallingUBlock, setIsInstallingUBlock] = useState(false);
+  const [uBlockInstallStatus, setUBlockInstallStatus] = useState('');
   const [searchError, setSearchError] = useState<string | null>(null);
   const [, setTick] = useState(0); // For elapsed time updates
   const [downloadHistory, setDownloadHistory] = useState<DownloadHistoryItem[]>([]);
@@ -136,10 +138,24 @@ export default function DownloaderPage(): JSX.Element {
         const settings = await window.electronAPI.getSettings();
         if (settings.musicFolder) {
           setDownloadFolder(settings.musicFolder);
+        } else if (window.electronAPI?.getDefaultDownloadFolder) {
+          // Get default folder if no music folder is set
+          const defaultFolder = await window.electronAPI.getDefaultDownloadFolder();
+          setDownloadFolder(defaultFolder);
         }
       }
     } catch (error) {
       console.error('Error loading settings:', error);
+    }
+  };
+
+  const handleOpenMusicFolder = async () => {
+    try {
+      if (window.electronAPI?.openMusicFolder) {
+        await window.electronAPI.openMusicFolder();
+      }
+    } catch (error) {
+      console.error('Error opening music folder:', error);
     }
   };
 
@@ -156,15 +172,21 @@ export default function DownloaderPage(): JSX.Element {
 
   const handleInstallYtDlp = async () => {
     setIsInstallingYtdlp(true);
+    setYtdlpInstallStatus('Baixando yt-dlp...');
     try {
       if (window.electronAPI?.installYtDlp) {
         await window.electronAPI.installYtDlp();
+        setYtdlpInstallStatus('Instalado!');
         await checkYtDlpStatus();
       }
     } catch (error) {
       console.error('Error installing yt-dlp:', error);
+      setYtdlpInstallStatus('Erro na instalação');
     }
-    setIsInstallingYtdlp(false);
+    setTimeout(() => {
+      setIsInstallingYtdlp(false);
+      setYtdlpInstallStatus('');
+    }, 1500);
   };
 
   const checkUBlockStatus = async () => {
@@ -180,15 +202,21 @@ export default function DownloaderPage(): JSX.Element {
 
   const handleInstallUBlock = async () => {
     setIsInstallingUBlock(true);
+    setUBlockInstallStatus('Baixando uBlock...');
     try {
       if (window.electronAPI?.installUBlock) {
         await window.electronAPI.installUBlock();
+        setUBlockInstallStatus('Instalado!');
         await checkUBlockStatus();
       }
     } catch (error) {
       console.error('Error installing uBlock:', error);
+      setUBlockInstallStatus('Erro na instalação');
     }
-    setIsInstallingUBlock(false);
+    setTimeout(() => {
+      setIsInstallingUBlock(false);
+      setUBlockInstallStatus('');
+    }, 1500);
   };
 
   const handleSearch = async () => {
@@ -412,20 +440,30 @@ export default function DownloaderPage(): JSX.Element {
                 <button
                   onClick={handleInstallYtDlp}
                   disabled={isInstallingYtdlp}
-                  className="ml-1 px-2 py-0.5 text-xs bg-accent-primary hover:bg-accent-hover text-white rounded transition-colors disabled:opacity-50"
+                  className="ml-1 px-2 py-0.5 text-xs bg-accent-primary hover:bg-accent-hover text-white rounded transition-colors disabled:opacity-50 flex items-center gap-1"
                   title="Instalar yt-dlp e ffmpeg"
                 >
-                  {isInstallingYtdlp ? <Loader2 className="w-3 h-3 animate-spin" /> : 'yt-dlp'}
+                  {isInstallingYtdlp ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="max-w-20 truncate">{ytdlpInstallStatus || 'Instalando...'}</span>
+                    </>
+                  ) : 'Instalar'}
                 </button>
               )}
               {uBlockStatus && !uBlockStatus.installed && (
                 <button
                   onClick={handleInstallUBlock}
                   disabled={isInstallingUBlock}
-                  className="px-2 py-0.5 text-xs bg-accent-primary hover:bg-accent-hover text-white rounded transition-colors disabled:opacity-50"
+                  className="px-2 py-0.5 text-xs bg-accent-primary hover:bg-accent-hover text-white rounded transition-colors disabled:opacity-50 flex items-center gap-1"
                   title="Instalar uBlock Origin (bloqueador de anúncios)"
                 >
-                  {isInstallingUBlock ? <Loader2 className="w-3 h-3 animate-spin" /> : 'uBlock'}
+                  {isInstallingUBlock ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span className="max-w-20 truncate">{uBlockInstallStatus || 'Instalando...'}</span>
+                    </>
+                  ) : 'uBlock'}
                 </button>
               )}
               <button
@@ -490,6 +528,65 @@ export default function DownloaderPage(): JSX.Element {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Installation Banner - shows when yt-dlp or ffmpeg not installed */}
+      {ytdlpStatus && (!ytdlpStatus.installed || !ytdlpStatus.ffmpegInstalled) && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 flex-shrink-0"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-yellow-500" />
+              <div>
+                <p className="text-sm font-medium text-text-primary">
+                  Dependências necessárias
+                </p>
+                <p className="text-xs text-text-secondary">
+                  {!ytdlpStatus.installed && !ytdlpStatus.ffmpegInstalled
+                    ? 'yt-dlp e ffmpeg precisam ser instalados para baixar músicas'
+                    : !ytdlpStatus.installed
+                    ? 'yt-dlp precisa ser instalado para baixar músicas'
+                    : 'ffmpeg precisa ser instalado para converter áudio'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleInstallYtDlp}
+              disabled={isInstallingYtdlp}
+              className="px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-black font-medium rounded-lg transition-colors disabled:opacity-70 flex items-center gap-2"
+            >
+              {isInstallingYtdlp ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{ytdlpInstallStatus || 'Instalando...'}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>Instalar Agora</span>
+                </>
+              )}
+            </button>
+          </div>
+          {isInstallingYtdlp && (
+            <div className="mt-3">
+              <div className="h-1 bg-yellow-500/20 rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-yellow-500"
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 30, ease: 'linear' }}
+                />
+              </div>
+              <p className="text-xs text-text-muted mt-1 text-center">
+                Isso pode levar alguns segundos...
+              </p>
+            </div>
+          )}
+        </motion.div>
+      )}
 
       {/* Main content - 2 columns */}
       <div className="flex-1 flex gap-4 min-h-0">
@@ -622,11 +719,15 @@ export default function DownloaderPage(): JSX.Element {
                 </button>
               )}
             </div>
-            {/* Download folder info */}
-            <div className="flex items-center gap-2 text-xs text-text-muted">
-              <FolderOpen className="w-3.5 h-3.5" />
-              <span className="truncate">{downloadFolder || 'Pasta padrão'}</span>
-            </div>
+            {/* Download folder info - clickable to open */}
+            <button
+              onClick={handleOpenMusicFolder}
+              className="flex items-center gap-2 text-xs text-text-muted hover:text-accent-primary transition-colors group"
+              title="Abrir pasta de músicas"
+            >
+              <FolderOpen className="w-3.5 h-3.5 group-hover:text-accent-primary" />
+              <span className="truncate max-w-[200px]">{downloadFolder || 'Pasta padrão'}</span>
+            </button>
           </div>
 
           {/* Downloads list - unified view */}

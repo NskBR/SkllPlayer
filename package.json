@@ -1,6 +1,6 @@
 {
   "name": "skllplayer",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A beautiful music player inspired by BlackPlayer",
   "main": "dist/main/main.js",
   "author": {
@@ -16,9 +16,10 @@
     "build:main": "tsc -p tsconfig.main.json",
     "start": "electron .",
     "electron:dev": "concurrently \"npm run dev:renderer\" \"wait-on http://localhost:5173 && npm run build:main && electron .\"",
-    "package": "npm run build && electron-builder",
-    "package:win": "npm run build && electron-builder --win",
-    "package:portable": "npm run build && electron-builder --win dir portable --config.win.signAndEditExecutable=false && node scripts/apply-icon.js",
+    "download-deps": "node scripts/download-deps.js",
+    "package": "npm run download-deps && npm run build && electron-builder",
+    "package:win": "npm run download-deps && npm run build && electron-builder --win",
+    "package:portable": "npm run build && electron-builder --win dir portable",
     "package:mac": "npm run build && electron-builder --mac",
     "package:linux": "npm run build && electron-builder --linux"
   },
@@ -44,6 +45,7 @@
     "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
+    "canvas": "^3.2.0",
     "concurrently": "^8.2.2",
     "electron": "^28.2.1",
     "electron-builder": "^24.12.0",
@@ -86,14 +88,26 @@
       "icon": "assets/icons/icon.ico",
       "signAndEditExecutable": false
     },
+    "afterPack": "scripts/after-pack.js",
     "portable": {
       "artifactName": "${productName}-Portable-${version}.${ext}"
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "allowElevation": true,
       "installerIcon": "assets/icons/icon.ico",
       "uninstallerIcon": "assets/icons/icon.ico",
+      "installerHeaderIcon": "assets/icons/icon.ico",
+      "installerSidebar": "build/installerSidebar.png",
+      "uninstallerSidebar": "build/uninstallerSidebar.png",
+      "installerHeader": "build/installerHeader.png",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SkllPlayer",
+      "uninstallDisplayName": "SkllPlayer",
+      "include": "scripts/installer.nsh",
       "artifactName": "${productName}-Setup-${version}.${ext}"
     },
     "mac": {
@@ -108,6 +122,14 @@
       {
         "from": "themes",
         "to": "themes"
+      },
+      {
+        "from": "deps/bin",
+        "to": "bin"
+      },
+      {
+        "from": "deps/ffmpeg",
+        "to": "ffmpeg"
       }
     ]
   }

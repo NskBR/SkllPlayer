@@ -10,6 +10,20 @@ const YTDLP_LATEST_URL = 'https://github.com/yt-dlp/yt-dlp/releases/latest/downl
 // ffmpeg builds for yt-dlp
 const FFMPEG_RELEASE_URL = 'https://github.com/yt-dlp/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip';
 
+// Check if running in packaged app
+function isPackaged(): boolean {
+  return app.isPackaged;
+}
+
+// Get bundled resources path
+function getBundledResourcesPath(): string {
+  if (isPackaged()) {
+    return path.join(process.resourcesPath);
+  }
+  // In development, deps folder is at project root
+  return path.join(__dirname, '..', '..', 'deps');
+}
+
 interface YouTubeResult {
   id: string;
   title: string;
@@ -33,7 +47,21 @@ function getYtDlpDir(): string {
   return path.join(userDataPath, 'bin');
 }
 
+// Get bundled yt-dlp path
+function getBundledYtDlpPath(): string {
+  const resourcesPath = getBundledResourcesPath();
+  const isWindows = process.platform === 'win32';
+  return path.join(resourcesPath, 'bin', isWindows ? 'yt-dlp.exe' : 'yt-dlp');
+}
+
 function getYtDlpPath(): string {
+  // First check for bundled version
+  const bundledPath = getBundledYtDlpPath();
+  if (fs.existsSync(bundledPath)) {
+    return bundledPath;
+  }
+
+  // Fall back to user data path
   const binDir = getYtDlpDir();
   const isWindows = process.platform === 'win32';
   return path.join(binDir, isWindows ? 'yt-dlp.exe' : 'yt-dlp');
@@ -44,7 +72,54 @@ function getFfmpegDir(): string {
   return path.join(userDataPath, 'ffmpeg');
 }
 
+// Get bundled ffmpeg path
+function getBundledFfmpegPath(): string | null {
+  const resourcesPath = getBundledResourcesPath();
+  const ffmpegDir = path.join(resourcesPath, 'ffmpeg');
+
+  if (!fs.existsSync(ffmpegDir)) {
+    return null;
+  }
+
+  // Check for ffmpeg.exe directly
+  const directPath = path.join(ffmpegDir, 'ffmpeg.exe');
+  if (fs.existsSync(directPath)) {
+    return path.dirname(directPath);
+  }
+
+  // Check in bin subdirectory
+  const binPath = path.join(ffmpegDir, 'bin', 'ffmpeg.exe');
+  if (fs.existsSync(binPath)) {
+    return path.dirname(binPath);
+  }
+
+  // Check for extracted folder pattern (ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe)
+  try {
+    const entries = fs.readdirSync(ffmpegDir);
+    for (const entry of entries) {
+      const entryPath = path.join(ffmpegDir, entry);
+      if (fs.statSync(entryPath).isDirectory()) {
+        const nestedBinPath = path.join(entryPath, 'bin', 'ffmpeg.exe');
+        if (fs.existsSync(nestedBinPath)) {
+          return path.dirname(nestedBinPath);
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+
+  return null;
+}
+
 function getFfmpegPath(): string {
+  // First check for bundled version
+  const bundledPath = getBundledFfmpegPath();
+  if (bundledPath) {
+    return bundledPath;
+  }
+
+  // Fall back to user data path
   const ffmpegDir = getFfmpegDir();
   // After extraction, ffmpeg is in a subdirectory
   const possiblePaths = [
@@ -72,8 +147,15 @@ function getFfmpegPath(): string {
   return ffmpegDir;
 }
 
-// Check if ffmpeg is installed
+// Check if ffmpeg is installed (bundled or user-installed)
 export function isFfmpegInstalled(): boolean {
+  // First check for bundled version
+  const bundledPath = getBundledFfmpegPath();
+  if (bundledPath) {
+    return true;
+  }
+
+  // Check user data path
   const ffmpegDir = getFfmpegDir();
 
   if (!fs.existsSync(ffmpegDir)) {
@@ -87,12 +169,16 @@ export function isFfmpegInstalled(): boolean {
   ];
 
   // Check for extracted folder pattern (ffmpeg-master-latest-win64-gpl/bin/ffmpeg.exe)
-  const entries = fs.readdirSync(ffmpegDir);
-  for (const entry of entries) {
-    const binPath = path.join(ffmpegDir, entry, 'bin', 'ffmpeg.exe');
-    if (fs.existsSync(binPath)) {
-      return true;
+  try {
+    const entries = fs.readdirSync(ffmpegDir);
+    for (const entry of entries) {
+      const binPath = path.join(ffmpegDir, entry, 'bin', 'ffmpeg.exe');
+      if (fs.existsSync(binPath)) {
+        return true;
+      }
     }
+  } catch (e) {
+    // Ignore errors
   }
 
   return checkPaths.some(p => fs.existsSync(p));
@@ -136,19 +222,33 @@ export async function installFfmpeg(): Promise<void> {
   }
 }
 
-// Check if yt-dlp is installed and valid
+// Check if yt-dlp is installed and valid (bundled or user-installed)
 export function isYtDlpInstalled(): boolean {
-  const ytdlpPath = getYtDlpPath();
-  if (!fs.existsSync(ytdlpPath)) {
+  // First check for bundled version
+  const bundledPath = getBundledYtDlpPath();
+  if (fs.existsSync(bundledPath)) {
+    try {
+      const stats = fs.statSync(bundledPath);
+      if (stats.size >= 1000000) { // At least 1MB
+        return true;
+      }
+    } catch (e) {
+      // Ignore and check user path
+    }
+  }
+
+  // Check user data path
+  const userDataPath = path.join(getYtDlpDir(), process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+  if (!fs.existsSync(userDataPath)) {
     return false;
   }
 
   // Check file size (yt-dlp.exe is usually > 5MB)
   try {
-    const stats = fs.statSync(ytdlpPath);
+    const stats = fs.statSync(userDataPath);
     if (stats.size < 1000000) { // Less than 1MB is probably corrupted
       console.log('yt-dlp file seems corrupted (too small), removing...');
-      fs.unlinkSync(ytdlpPath);
+      fs.unlinkSync(userDataPath);
       return false;
     }
     return true;
