@@ -233,6 +233,13 @@
 
 ## O Que Falta Fazer
 
+### Media Session API (Prioridade de Media Keys)
+- [ ] Migrar de `globalShortcut` para **Media Session API**
+- [ ] Prioridade automática - último app a tocar recebe os controles
+- [ ] Integração com Windows Media Overlay (Win+G, popup de volume)
+- [ ] Mostrar metadata no overlay (título, artista, capa)
+- [ ] Controles funcionam apenas quando o app está "ativo" no sistema de mídia
+
 ### Efeitos de Áudio Avançados
 - [ ] Crossfade entre músicas
 - [ ] Gapless playback
