@@ -52,5 +52,5 @@ coverage/
 *.temp
 .cache/
 
-# Claude Code settings
+# Local AI assistant settings
 .claude/
